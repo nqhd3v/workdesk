@@ -1,12 +1,13 @@
 # Workdesk Ingest API
 
-Push data from external senders into Workdesk. There are three write-only endpoints:
+Push data from external senders into Workdesk, and read back what a module shows on screen:
 
 | Endpoint | Key scope | Sender | Stores |
 |---|---|---|---|
 | `POST /api/module` | `module` | IoT module | Environment readings (temperature, humidity, pressure, gas, battery) |
 | `POST /api/events` | `events` | Calendar source (e.g. Google Apps Script) | Current list of upcoming events |
 | `POST /api/usage-state` | `usage_state` | Usage client | Plan usage limits over time |
+| `GET /api/module/config` | `module` | IoT module | Nothing. Returns what to render (usage states, events). Rate limited. |
 
 The machine-readable contract is [`openapi.yaml`](./openapi.yaml). It is the source of truth if this guide and the spec ever disagree.
 
@@ -63,9 +64,10 @@ Errors share one shape:
 | 403 | `device_mismatch` | Module key already bound to another device | Use a separate key per device. |
 | 413 | `payload_too_large` | Body > 256 KB | Send fewer readings per request. |
 | 422 | `invalid_payload` | Valid JSON, wrong shape/values. `issues[]` lists each field | Fix the fields listed. Do not retry as-is. |
+| 429 | `rate_limited` | Too many requests (`GET /api/module/config` only) | Wait `Retry-After` seconds (20), then retry. |
 | 500 | `internal_error` | Server problem | Retry with backoff. |
 
-**Retry rule:** retry only on `500` or network errors, with exponential backoff. Never retry `4xx` unchanged.
+**Retry rule:** retry on `500` or network errors with exponential backoff, and on `429` after `Retry-After`. Never retry other `4xx` unchanged.
 
 ---
 
@@ -241,6 +243,69 @@ No active session:
   "session": { "used_pct": 0, "resets_at": null },
   "week":    { "used_pct": 18, "resets_at": 1793606400 }
 }
+```
+
+---
+
+## GET /api/module/config
+
+Everything a module renders on screen, in one call: the latest usage state per tool and the upcoming events.
+Read-only; nothing is stored.
+
+**Preconditions**
+- Key scope `module` (the same key the module uses for `POST /api/module`).
+- **Rate limit: 10 requests per minute per key.** Request 11+ in the same minute gets `429 rate_limited`
+  with a `Retry-After: 20` header. Wait 20 seconds, then retry. Polling every 30–60 s stays well under the limit.
+
+### Response `200`
+
+| Field | Type | Notes |
+|---|---|---|
+| `usage_states[]` | array | Latest state per tool. A tool that never reported is absent, so the array can be empty. |
+| `usage_states[].name` | string | `claude` or `copilot`. |
+| `usage_states[].measured_at` | integer | When the sender read the values, Unix seconds. Use it to show staleness. |
+| `usage_states[].session.used_pct` | number | 0–100. |
+| `usage_states[].session.resets_at` | integer \| null | Unix seconds; `null` while no session is active. |
+| `usage_states[].week.used_pct` | number | 0–100. |
+| `usage_states[].week.resets_at` | integer | Unix seconds. |
+| `events[]` | array | From the latest events push, only events that haven't ended yet, sorted by `start`. Can be empty. |
+| `events[].id` | string \| null | Source id, if the sender gave one. |
+| `events[].title` | string | |
+| `events[].start` / `events[].end` | integer | Unix seconds. |
+| `server_time` | integer | Server clock, Unix seconds. Use it to set the module clock or compute countdowns. |
+
+The response is never cached; always read `server_time` from the same response you render.
+
+### Example
+
+```bash
+curl "$WORKDESK_URL/api/module/config" -H "x-workdesk-key: $WORKDESK_KEY"
+```
+
+```json
+{
+  "usage_states": [
+    {
+      "name": "claude",
+      "measured_at": 1793260800,
+      "session": { "used_pct": 42.5, "resets_at": 1793273400 },
+      "week":    { "used_pct": 18,   "resets_at": 1793606400 }
+    }
+  ],
+  "events": [
+    { "id": "abc123", "title": "Standup", "start": 1793264400, "end": 1793265300 }
+  ],
+  "server_time": 1793260801
+}
+```
+
+Rate limited:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 20
+
+{ "error": { "code": "rate_limited", "message": "Max 10 requests per 60s. Retry in 20s." } }
 ```
 
 ---

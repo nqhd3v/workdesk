@@ -165,9 +165,14 @@
   .sys-wifi {
     animation: sys-wifi var(--connect, 0s) ease-in-out both;
   }
+  .sys-grow {
+    transform-box: fill-box;
+    transform-origin: left;
+    animation: sys-grow 0.8s ease-out var(--connect, 0s) both;
+  }
   @media (prefers-reduced-motion: reduce) {
     .sys-dash, .sys-blink, .sys-bar, .sys-draw,
-    .sys-online, .sys-border, .sys-led, .sys-wifi {
+    .sys-online, .sys-border, .sys-led, .sys-wifi, .sys-grow {
       animation: none;
     }
   }
@@ -191,6 +196,10 @@
 @keyframes sys-fade {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+@keyframes sys-grow {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
 @keyframes sys-border {
   from { stroke-opacity: 0; }

@@ -1,9 +1,19 @@
-// Decorative, abstract system diagram for the auth card's right panel:
+"use client";
+
+// Abstract system diagram for the auth card's right panel:
 // two device cards exchange data with a dashboard screen, database behind it.
 // Green dots = data up to the screen, blue squares = config back to devices.
 // Intro: each device boots "connecting" (red blinking LED, wifi pulse, no border);
-// once its --connect delay passes it goes green and its link/traffic appear.
-// Pure SVG + SMIL/CSS (no client JS); motion is off for prefers-reduced-motion.
+// once its --connect delay passes it goes green and its link/traffic/values appear.
+// Values are live (polled from /verify/live): the sensor device and the screen's first row show
+// temperature + humidity, the other device and the screen's second row show a usage bar.
+// SVG + SMIL/CSS; motion is off for prefers-reduced-motion.
+
+import { useEffect, useState } from "react";
+import type { BoardData } from "@/lib/board";
+
+const POLL_MS = 30_000;
+const EMPTY: BoardData = { temp_c: null, hum_pct: null, usage_pct: null };
 
 type Connect = { "--connect": string } & React.CSSProperties;
 
@@ -12,14 +22,42 @@ const DEVICES = [
   { id: "link-b", x: 240, y: 268, d: "M 290 268 V 214 H 256", dur: 3.1, connect: 2.4 },
 ];
 
-// Dashboard charts come alive once the first device is online.
-const FIRST_ONLINE = Math.min(...DEVICES.map((d) => d.connect));
+const [SENSOR, USAGE] = DEVICES;
+
+const fmtTemp = (v: number | null) => (v === null ? "--" : `${v.toFixed(1)}°C`);
+const fmtPct = (v: number | null) => (v === null ? "--" : `${Math.round(v)}%`);
+
+function useBoardData() {
+  const [data, setData] = useState<BoardData>(EMPTY);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch("/verify/live", { cache: "no-store" });
+        if (res.ok && alive) setData(await res.json());
+      } catch {
+        // Keep the last values; the next poll retries.
+      }
+    };
+    load();
+    const timer = setInterval(load, POLL_MS);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", load);
+    };
+  }, []);
+  return data;
+}
 
 function connectStyle(seconds: number): Connect {
   return { "--connect": `${seconds}s` };
 }
 
 export function SystemIllustration() {
+  const data = useBoardData();
   return (
     <svg
       aria-hidden
@@ -62,15 +100,27 @@ export function SystemIllustration() {
       ))}
 
       <Database x={196} y={92} />
-      <Screen x={104} y={132} />
-      {DEVICES.map(({ id, x, y, connect }) => (
-        <DeviceCard key={id} x={x} y={y} connect={connect} />
-      ))}
+      <Screen x={104} y={132} data={data} />
+      <DeviceCard x={SENSOR.x} y={SENSOR.y} connect={SENSOR.connect}>
+        <text x="10" y="47" fontSize="11" className="fill-foreground font-semibold tabular-nums">
+          {fmtTemp(data.temp_c)}
+        </text>
+        <Droplet x={66} y={39} />
+        <text x="90" y="47" fontSize="9" textAnchor="end" className="fill-muted-foreground tabular-nums">
+          {fmtPct(data.hum_pct)}
+        </text>
+      </DeviceCard>
+      <DeviceCard x={USAGE.x} y={USAGE.y} connect={USAGE.connect}>
+        <ProgressBar x={10} y={40} width={56} height={5} pct={data.usage_pct} />
+        <text x="90" y="46" fontSize="9" textAnchor="end" className="fill-muted-foreground tabular-nums">
+          {fmtPct(data.usage_pct)}
+        </text>
+      </DeviceCard>
     </svg>
   );
 }
 
-function DeviceCard({ x, y, connect }: { x: number; y: number; connect: number }) {
+function DeviceCard({ x, y, connect, children }: { x: number; y: number; connect: number; children: React.ReactNode }) {
   return (
     <g transform={`translate(${x} ${y})`} style={connectStyle(connect)}>
       <rect width="100" height="56" rx="6" className="sys-border fill-card stroke-foreground/40" strokeWidth="1.25" />
@@ -88,15 +138,8 @@ function DeviceCard({ x, y, connect }: { x: number; y: number; connect: number }
       </g>
       {/* status led: red + blinking while connecting, then green */}
       <circle cx="88" cy="16" r="3" className="sys-led fill-emerald-500" />
-      {/* live sparkline */}
-      <g className="sys-online">
-        <polyline
-          points="10,46 22,40 32,43 44,36 56,41 68,34 80,38 90,33"
-          className="sys-draw fill-none stroke-emerald-500/70"
-          strokeWidth="1.25"
-          strokeLinejoin="round"
-        />
-      </g>
+      {/* live values, shown once online */}
+      <g className="sys-online">{children}</g>
     </g>
   );
 }
@@ -126,9 +169,43 @@ function Database({ x, y }: { x: number; y: number }) {
   );
 }
 
-const BARS = [18, 30, 22, 36, 26, 32];
+function Droplet({ x, y }: { x: number; y: number }) {
+  return (
+    <path
+      transform={`translate(${x} ${y})`}
+      d="M 3.5 0 C 3.5 0 0 4 0 6 A 3.5 3.5 0 0 0 7 6 C 7 4 3.5 0 3.5 0 Z"
+      className="fill-sky-500/70"
+    />
+  );
+}
 
-function Screen({ x, y }: { x: number; y: number }) {
+function barColor(pct: number) {
+  if (pct >= 90) return "fill-red-500";
+  if (pct >= 70) return "fill-amber-500";
+  return "fill-emerald-500";
+}
+
+/** Track + fill. Grows in when its group comes online, then eases between polled values. */
+function ProgressBar({ x, y, width, height, pct }: { x: number; y: number; width: number; height: number; pct: number | null }) {
+  const value = Math.min(100, Math.max(0, pct ?? 0));
+  const r = height / 2;
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      <rect width={width} height={height} rx={r} className="fill-foreground/10" />
+      <g className="sys-grow">
+        <rect
+          width={width}
+          height={height}
+          rx={r}
+          className={`transition-[transform,fill] duration-700 ease-out ${barColor(value)}`}
+          style={{ transform: `scaleX(${value / 100})`, transformBox: "fill-box", transformOrigin: "left" }}
+        />
+      </g>
+    </g>
+  );
+}
+
+function Screen({ x, y, data }: { x: number; y: number; data: BoardData }) {
   return (
     <g transform={`translate(${x} ${y})`}>
       {/* stand */}
@@ -141,41 +218,33 @@ function Screen({ x, y }: { x: number; y: number }) {
       {/* dashboard: header */}
       <circle cx="16" cy="16" r="2.5" className="fill-foreground/30" />
       <rect x="23" y="14" width="30" height="4" rx="2" className="fill-foreground/25" />
-      {/* stat tiles */}
-      {[0, 1, 2].map((k) => (
-        <g key={k} transform={`translate(${14 + k * 42} 26)`}>
-          <rect width="38" height="18" rx="2" className="fill-card" />
+
+      {/* row 1: temperature + humidity tiles */}
+      {[
+        { dx: 14, value: fmtTemp(data.temp_c), droplet: false },
+        { dx: 78, value: fmtPct(data.hum_pct), droplet: true },
+      ].map(({ dx, value, droplet }) => (
+        <g key={dx} transform={`translate(${dx} 26)`}>
+          <rect width="60" height="24" rx="2" className="fill-card" />
           <rect x="5" y="5" width="16" height="3" rx="1.5" className="fill-foreground/20" />
-          <rect x="5" y="11" width={10 + k * 5} height="3" rx="1.5" className="fill-foreground/40" />
+          {droplet && <Droplet x={49} y={4} />}
+          <g className="sys-online" style={connectStyle(SENSOR.connect)}>
+            <text x="5" y="19" fontSize="9" className="fill-foreground font-semibold tabular-nums">
+              {value}
+            </text>
+          </g>
         </g>
       ))}
-      {/* bar chart */}
-      <g transform="translate(14 50)">
-        <rect width="62" height="36" rx="2" className="fill-card" />
-        <g className="sys-online" style={connectStyle(FIRST_ONLINE)}>
-        {BARS.map((h, k) => (
-          <rect
-            key={k}
-            x={6 + k * 9}
-            y={32 - h * 0.8}
-            width="5"
-            height={h * 0.8}
-            className="sys-bar fill-sky-500/70"
-            style={{ animationDelay: `${k * 0.2}s` }}
-          />
-        ))}
-        </g>
-      </g>
-      {/* line chart */}
-      <g transform="translate(80 50)">
-        <rect width="58" height="36" rx="2" className="fill-card" />
-        <g className="sys-online" style={connectStyle(FIRST_ONLINE)}>
-          <polyline
-            points="5,28 13,22 21,25 29,14 37,18 45,9 53,12"
-            className="sys-draw fill-none stroke-emerald-500"
-            strokeWidth="1.5"
-            strokeLinejoin="round"
-          />
+
+      {/* row 2: usage bar */}
+      <g transform="translate(14 56)">
+        <rect width="124" height="30" rx="2" className="fill-card" />
+        <rect x="6" y="7" width="28" height="3" rx="1.5" className="fill-foreground/20" />
+        <g className="sys-online" style={connectStyle(USAGE.connect)}>
+          <text x="118" y="11" fontSize="7" textAnchor="end" className="fill-muted-foreground tabular-nums">
+            {fmtPct(data.usage_pct)}
+          </text>
+          <ProgressBar x={6} y={17} width={112} height={6} pct={data.usage_pct} />
         </g>
       </g>
     </g>

@@ -4,7 +4,8 @@ info:
   version: "1.0.0"
   summary: Push data from external senders (IoT modules, calendar sources, usage clients) into Workdesk.
   description: |
-    Three write-only endpoints. Every request needs an API key in the `x-workdesk-key` header.
+    Three write-only ingest endpoints, plus `GET /api/module/config` for modules to read what to render.
+    Every request needs an API key in the `x-workdesk-key` header.
     Keys are created by the Workdesk owner at **Settings → API keys**; each key is bound to exactly one endpoint.
     See `docs/api.md` for the integration guide.
 servers:
@@ -158,6 +159,39 @@ paths:
         "422": { $ref: "#/components/responses/InvalidPayload" }
         "500": { $ref: "#/components/responses/InternalError" }
 
+  /api/module/config:
+    get:
+      tags: [Module]
+      operationId: getModuleConfig
+      summary: Get what the module renders on screen
+      description: |
+        Requires a key with scope `module`. Returns the latest usage state per tool and the events from the latest
+        events push that haven't ended yet (sorted by `start`). Read-only; never cached.
+
+        Rate limit: 10 requests per minute per key. Further requests get `429` with `Retry-After: 20`.
+      responses:
+        "200":
+          description: Current render data.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ModuleConfig" }
+              example:
+                usage_states:
+                  - name: claude
+                    measured_at: 1793260800
+                    session: { used_pct: 42.5, resets_at: 1793273400 }
+                    week: { used_pct: 18, resets_at: 1793606400 }
+                events:
+                  - { id: abc123, title: Standup, start: 1793264400, end: 1793265300 }
+                server_time: 1793260801
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
 components:
   securitySchemes:
     WorkdeskKey:
@@ -277,6 +311,27 @@ components:
                 resets_at: { type: integer }
           description: Weekly limit. `resets_at` is always set.
 
+    ModuleConfig:
+      type: object
+      required: [usage_states, events, server_time]
+      properties:
+        usage_states:
+          type: array
+          description: Latest state per tool. Tools that never reported are absent.
+          items: { $ref: "#/components/schemas/UsageState" }
+        events:
+          type: array
+          description: Not-yet-ended events from the latest events push, sorted by `start`.
+          items:
+            type: object
+            required: [id, title, start, end]
+            properties:
+              id: { type: [string, "null"], description: "Source id, if the sender gave one." }
+              title: { type: string }
+              start: { type: integer, description: Unix seconds. }
+              end: { type: integer, description: Unix seconds. }
+        server_time: { $ref: "#/components/schemas/ServerTime" }
+
     Error:
       type: object
       required: [error]
@@ -287,7 +342,7 @@ components:
           properties:
             code:
               type: string
-              enum: [unauthorized, key_expired, forbidden, device_mismatch, invalid_json, payload_too_large, invalid_payload, internal_error]
+              enum: [unauthorized, key_expired, forbidden, device_mismatch, invalid_json, payload_too_large, invalid_payload, rate_limited, internal_error]
             message: { type: string }
             issues:
               type: array
@@ -296,7 +351,7 @@ components:
                 type: object
                 required: [path, message]
                 properties:
-                  path: { type: string, description: Dot path to the field, e.g. `readings.0.ts`. }
+                  path: { type: string, description: "Dot path to the field, e.g. `readings.0.ts`." }
                   message: { type: string }
 
   responses:
@@ -338,6 +393,16 @@ components:
               code: invalid_payload
               message: Payload failed validation.
               issues: [{ path: readings.0.ts, message: Timestamp (unix seconds) out of range }]
+    RateLimited:
+      description: More than 10 requests per minute for this key. Retry after `Retry-After` seconds.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer, const: 20 }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: { code: rate_limited, message: Max 10 requests per 60s. Retry in 20s. } }
     InternalError:
       description: Unexpected server error. Safe to retry with backoff.
       content:
