@@ -1,0 +1,339 @@
+openapi: 3.1.0
+info:
+  title: Workdesk Ingest API
+  version: "1.0.0"
+  summary: Push data from external senders (IoT modules, calendar sources, usage clients) into Workdesk.
+  description: |
+    Three write-only endpoints. Every request needs an API key in the `x-workdesk-key` header.
+    Keys are created by the Workdesk owner at **Settings → API keys**; each key is bound to exactly one endpoint.
+    See `docs/api.md` for the integration guide.
+servers:
+  - url: http://localhost:3000
+    description: Local development
+security:
+  - WorkdeskKey: []
+tags:
+  - name: Module
+    description: Environment readings from IoT modules.
+  - name: Events
+    description: Upcoming events from a calendar source.
+  - name: Usage state
+    description: Plan usage limits from a client.
+
+paths:
+  /api/module:
+    post:
+      tags: [Module]
+      operationId: pushModuleReport
+      summary: Push a module report with one or more sensor readings
+      description: |
+        Requires a key with scope `module`. The first `device.id` sent with a key binds the key to that device;
+        later reports with another `device.id` are rejected with `403 device_mismatch`.
+
+        Readings are de-duplicated by `(device.id, ts)`, so retrying the same report is safe: the response
+        `stored` counts only readings that were new.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ModuleReport" }
+            example:
+              v: 1
+              device: { id: workdesk-8734, fw: 0.4.0, uptime_s: 5423 }
+              power: { source: battery, batt_mv: 3912, batt_pct: 71 }
+              readings:
+                - { ts: 1793242800, temp_c: 28.16, hum_pct: 48.7, pressure_hpa: 1005.1, gas_ohm: 45881, iaq: null, batt_mv: 3915 }
+                - { ts: 1793242860, temp_c: 28.21, hum_pct: 48.5, pressure_hpa: 1005.1, gas_ohm: 46102, iaq: null, batt_mv: 3914 }
+                - { ts: 1793242920, temp_c: null, hum_pct: null, pressure_hpa: null, gas_ohm: null, iaq: null, batt_mv: 3912 }
+              wifi: { ssid: ONE_CLT, rssi: -76, ip: 10.84.240.53 }
+      responses:
+        "201":
+          description: Report accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [received, stored, server_time]
+                properties:
+                  received: { type: integer, description: Readings in the request. }
+                  stored: { type: integer, description: Readings newly stored (duplicates excluded). }
+                  server_time: { $ref: "#/components/schemas/ServerTime" }
+              example: { received: 3, stored: 3, server_time: 1793242925 }
+        "400": { $ref: "#/components/responses/InvalidJson" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403":
+          description: Key belongs to another endpoint (`forbidden`) or another device (`device_mismatch`).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              examples:
+                wrongScope:
+                  value: { error: { code: forbidden, message: 'This key is for the "events" API.' } }
+                wrongDevice:
+                  value: { error: { code: device_mismatch, message: 'This key belongs to device "workdesk-8734".' } }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/InvalidPayload" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /api/events:
+    post:
+      tags: [Events]
+      operationId: pushEvents
+      summary: Replace the list of upcoming events
+      description: |
+        Requires a key with scope `events`. Each request is a full snapshot: the newest request is the current
+        list, so send every upcoming event each time (an empty list clears it). Events are stored sorted by `start`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EventsSnapshot" }
+            example:
+              sent_at: 1793260800
+              events:
+                - { id: "abc123@google.com", title: Daily Meeting, start: 1793262600, end: 1793263500 }
+                - { title: Retro, start: 1793277600, end: 1793281200 }
+      responses:
+        "201":
+          description: Snapshot accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [events, server_time]
+                properties:
+                  events: { type: integer, description: Events stored in this snapshot. }
+                  server_time: { $ref: "#/components/schemas/ServerTime" }
+              example: { events: 2, server_time: 1793260801 }
+        "400": { $ref: "#/components/responses/InvalidJson" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/InvalidPayload" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /api/usage-state:
+    post:
+      tags: [Usage state]
+      operationId: pushUsageState
+      summary: Record the current plan usage state
+      description: |
+        Requires a key with scope `usage_state`. Each request is stored as a point in time, building a history.
+        Usage is grouped per limit window (`session`, `week`); `session.resets_at` is `null` while no session is
+        active (a session starts with the first message).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UsageState" }
+            examples:
+              activeSession:
+                value:
+                  measured_at: 1793260800
+                  session: { used_pct: 42.5, resets_at: 1793273400 }
+                  week: { used_pct: 18, resets_at: 1793606400 }
+              noSession:
+                value:
+                  measured_at: 1793260800
+                  session: { used_pct: 0, resets_at: null }
+                  week: { used_pct: 18, resets_at: 1793606400 }
+      responses:
+        "201":
+          description: State recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [server_time]
+                properties:
+                  server_time: { $ref: "#/components/schemas/ServerTime" }
+              example: { server_time: 1793260801 }
+        "400": { $ref: "#/components/responses/InvalidJson" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "413": { $ref: "#/components/responses/PayloadTooLarge" }
+        "422": { $ref: "#/components/responses/InvalidPayload" }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+components:
+  securitySchemes:
+    WorkdeskKey:
+      type: apiKey
+      in: header
+      name: x-workdesk-key
+      description: "Format `wdk_` + 43 URL-safe base64 characters. Shown once at creation; store it as a secret. Expires at most 1 year after creation."
+
+  schemas:
+    UnixSeconds:
+      type: integer
+      description: Unix time in **seconds** (UTC). Must be after 2024-01-01 and at most 24h in the future unless stated otherwise.
+      minimum: 1704067200
+    ServerTime:
+      type: integer
+      description: Server clock at response time, Unix seconds. Compare with the device clock to detect drift.
+    Percent:
+      type: number
+      minimum: 0
+      maximum: 100
+
+    ModuleReport:
+      type: object
+      required: [v, device, readings]
+      properties:
+        v:
+          type: integer
+          const: 1
+          description: Payload format version.
+        device:
+          type: object
+          required: [id]
+          properties:
+            id: { type: string, minLength: 1, maxLength: 64, description: Stable device identifier. }
+            fw: { type: string, maxLength: 32, description: Firmware version. }
+            uptime_s: { type: integer, minimum: 0 }
+        power:
+          type: object
+          properties:
+            source: { type: string, maxLength: 16, examples: [battery, usb] }
+            batt_mv: { type: [integer, "null"], minimum: 0 }
+            batt_pct: { oneOf: [{ $ref: "#/components/schemas/Percent" }, { type: "null" }] }
+        readings:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items: { $ref: "#/components/schemas/Reading" }
+        wifi:
+          type: object
+          properties:
+            ssid: { type: string, maxLength: 64 }
+            rssi: { type: integer, minimum: -127, maximum: 0, description: dBm }
+            ip: { type: string, maxLength: 45 }
+    Reading:
+      type: object
+      required: [ts]
+      description: One sample. Any sensor value may be omitted or `null` (e.g. sensor warming up).
+      properties:
+        ts: { $ref: "#/components/schemas/UnixSeconds" }
+        temp_c: { type: [number, "null"], minimum: -60, maximum: 100 }
+        hum_pct: { oneOf: [{ $ref: "#/components/schemas/Percent" }, { type: "null" }] }
+        pressure_hpa: { type: [number, "null"], minimum: 300, maximum: 1200 }
+        gas_ohm: { type: [integer, "null"], minimum: 0 }
+        iaq: { type: [number, "null"], minimum: 0, maximum: 500, description: Indoor air quality index. }
+        batt_mv: { type: [integer, "null"], minimum: 0 }
+
+    EventsSnapshot:
+      type: object
+      required: [sent_at, events]
+      properties:
+        sent_at: { $ref: "#/components/schemas/UnixSeconds" }
+        events:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            required: [title, start, end]
+            properties:
+              id: { type: string, minLength: 1, maxLength: 256, description: Source event id (optional). }
+              title: { type: string, minLength: 1, maxLength: 200 }
+              start:
+                type: integer
+                minimum: 1704067200
+                description: Start time, Unix seconds. Up to 366 days in the future.
+              end:
+                type: integer
+                minimum: 1704067200
+                description: End time, Unix seconds. `end >= start`, and at most 7 days after `start`.
+
+    UsageWindow:
+      type: object
+      required: [used_pct, resets_at]
+      properties:
+        used_pct: { $ref: "#/components/schemas/Percent" }
+        resets_at:
+          type: [integer, "null"]
+          minimum: 1704067200
+          description: When this window resets, Unix seconds. Up to 30 days in the future.
+
+    UsageState:
+      type: object
+      required: [measured_at, session, week]
+      properties:
+        measured_at: { $ref: "#/components/schemas/UnixSeconds" }
+        session:
+          allOf: [{ $ref: "#/components/schemas/UsageWindow" }]
+          description: Rolling session limit. `resets_at` is `null` while no session is active.
+        week:
+          allOf:
+            - { $ref: "#/components/schemas/UsageWindow" }
+            - type: object
+              properties:
+                resets_at: { type: integer }
+          description: Weekly limit. `resets_at` is always set.
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [unauthorized, key_expired, forbidden, device_mismatch, invalid_json, payload_too_large, invalid_payload, internal_error]
+            message: { type: string }
+            issues:
+              type: array
+              description: Present for `invalid_payload`.
+              items:
+                type: object
+                required: [path, message]
+                properties:
+                  path: { type: string, description: Dot path to the field, e.g. `readings.0.ts`. }
+                  message: { type: string }
+
+  responses:
+    InvalidJson:
+      description: Body is not valid JSON.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: { code: invalid_json, message: Body is not valid JSON. } }
+    Unauthorized:
+      description: Header missing or malformed, key unknown or revoked (`unauthorized`), or key past its expiry date (`key_expired`).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          examples:
+            invalid:
+              value: { error: { code: unauthorized, message: Invalid or revoked API key. } }
+            expired:
+              value: { error: { code: key_expired, message: API key expired. Ask the owner for a new key. } }
+    Forbidden:
+      description: The key is valid but belongs to another endpoint.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: { code: forbidden, message: 'This key is for the "module" API.' } }
+    PayloadTooLarge:
+      description: Body larger than 256 KB.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: { code: payload_too_large, message: Body exceeds 262144 bytes. } }
+    InvalidPayload:
+      description: JSON is valid but fails validation. `issues` lists every problem.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example:
+            error:
+              code: invalid_payload
+              message: Payload failed validation.
+              issues: [{ path: readings.0.ts, message: Timestamp (unix seconds) out of range }]
+    InternalError:
+      description: Unexpected server error. Safe to retry with backoff.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+          example: { error: { code: internal_error, message: Something went wrong. } }
