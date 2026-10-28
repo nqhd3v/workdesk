@@ -7,6 +7,7 @@ const iso = (s: number) => new Date(s * 1000).toISOString();
 export const POST = ingestRoute("usage_state", usageStatePayload, async (data, key) => {
   const { error } = await supabase.from("usage_states").insert({
     api_key_id: key.id,
+    name: data.name,
     session_pct: data.session.used_pct,
     session_resets_at: data.session.resets_at === null ? null : iso(data.session.resets_at),
     week_pct: data.week.used_pct,

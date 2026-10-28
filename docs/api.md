@@ -195,7 +195,7 @@ function pushEvents() {
 
 ## POST /api/usage-state
 
-Current plan usage limits. Each request is stored as a point in time, so Workdesk can chart usage over time.
+Current plan usage limits for one tool (`claude` or `copilot`). Each request is stored as a point in time, so Workdesk can chart usage over time.
 Usage is grouped per limit window, so new windows can be added later without breaking senders.
 
 **Preconditions**
@@ -205,6 +205,7 @@ Usage is grouped per limit window, so new windows can be added later without bre
 
 | Field | Type | Required | Rules |
 |---|---|---|---|
+| `name` | string | yes | Tool the limits belong to: `claude` or `copilot`. |
 | `measured_at` | integer | yes | When the values were read, Unix seconds. |
 | `session.used_pct` | number | yes | 0–100. |
 | `session.resets_at` | integer \| null | yes | When the session limit resets, Unix seconds (≤ 30 days ahead). `null` while no session is active (a session starts with the first message). |
@@ -220,6 +221,7 @@ curl -X POST "$WORKDESK_URL/api/usage-state" \
   -H "Content-Type: application/json" \
   -H "x-workdesk-key: $WORKDESK_KEY" \
   -d '{
+    "name": "claude",
     "measured_at": 1793260800,
     "session": { "used_pct": 42.5, "resets_at": 1793273400 },
     "week":    { "used_pct": 18,   "resets_at": 1793606400 }
@@ -234,6 +236,7 @@ No active session:
 
 ```json
 {
+  "name": "copilot",
   "measured_at": 1793260800,
   "session": { "used_pct": 0, "resets_at": null },
   "week":    { "used_pct": 18, "resets_at": 1793606400 }

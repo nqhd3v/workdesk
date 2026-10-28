@@ -75,6 +75,8 @@ export type EventsPayload = z.infer<typeof eventsPayload>;
 
 // --- POST /api/usage-state -----------------------------------------------
 
+export const USAGE_TOOLS = ["claude", "copilot"] as const;
+
 const usageWindow = z.object({
   used_pct: percent,
   // Absolute reset time; null when the window isn't running (e.g. no active session).
@@ -82,6 +84,8 @@ const usageWindow = z.object({
 });
 
 export const usageStatePayload = z.object({
+  // Which tool these limits belong to.
+  name: z.enum(USAGE_TOOLS),
   measured_at: unixSeconds(),
   session: usageWindow,
   week: usageWindow.extend({ resets_at: unixSeconds(30 * DAY_S) }),

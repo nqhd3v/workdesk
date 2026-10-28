@@ -119,6 +119,7 @@ paths:
       summary: Record the current plan usage state
       description: |
         Requires a key with scope `usage_state`. Each request is stored as a point in time, building a history.
+        `name` identifies the tool the limits belong to (`claude` or `copilot`).
         Usage is grouped per limit window (`session`, `week`); `session.resets_at` is `null` while no session is
         active (a session starts with the first message).
       requestBody:
@@ -129,11 +130,13 @@ paths:
             examples:
               activeSession:
                 value:
+                  name: claude
                   measured_at: 1793260800
                   session: { used_pct: 42.5, resets_at: 1793273400 }
                   week: { used_pct: 18, resets_at: 1793606400 }
               noSession:
                 value:
+                  name: copilot
                   measured_at: 1793260800
                   session: { used_pct: 0, resets_at: null }
                   week: { used_pct: 18, resets_at: 1793606400 }
@@ -256,8 +259,12 @@ components:
 
     UsageState:
       type: object
-      required: [measured_at, session, week]
+      required: [name, measured_at, session, week]
       properties:
+        name:
+          type: string
+          enum: [claude, copilot]
+          description: Tool these limits belong to.
         measured_at: { $ref: "#/components/schemas/UnixSeconds" }
         session:
           allOf: [{ $ref: "#/components/schemas/UsageWindow" }]
