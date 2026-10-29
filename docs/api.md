@@ -7,6 +7,7 @@ Push data from external senders into Workdesk, and read back what a module shows
 | `POST /api/module` | `module` | IoT module | Environment readings (temperature, humidity, pressure, gas, battery) |
 | `POST /api/events` | `events` | Calendar source (e.g. Google Apps Script) | Current list of upcoming events |
 | `POST /api/usage-state` | `usage_state` | Usage client | Plan usage limits over time |
+| `POST /api/usage-state/otlp/v1/*` | `usage_state` | Claude Code OpenTelemetry exporter | Nothing yet. Logs payloads (experimental). |
 | `GET /api/module/config` | `module` | IoT module | Nothing. Returns what to render (usage states, events). Rate limited. |
 
 The machine-readable contract is [`openapi.yaml`](./openapi.yaml). It is the source of truth if this guide and the spec ever disagree.
@@ -243,6 +244,30 @@ No active session:
   "session": { "used_pct": 0, "resets_at": null },
   "week":    { "used_pct": 18, "resets_at": 1793606400 }
 }
+```
+
+---
+
+## POST /api/usage-state/otlp
+
+**Experimental.** Receives [Claude Code telemetry](https://code.claude.com/docs/en/monitoring-usage) over OTLP/HTTP.
+Payloads are only logged server-side for now; nothing is stored. Errors use OTLP's shape (`{ "code", "message" }`),
+not the `error` envelope above.
+
+**Preconditions**
+- Key scope `usage_state`, passed through the exporter headers.
+- Protocol `http/json` (readable logs) or `http/protobuf`. gRPC is not supported.
+
+Exporters append the signal path to the endpoint, so requests arrive at `/api/usage-state/otlp/v1/metrics`,
+`/v1/logs` (and `/v1/traces` if enabled). Success is `200` with `{}`.
+
+```bash
+export CLAUDE_CODE_ENABLE_TELEMETRY=1
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+export OTEL_EXPORTER_OTLP_ENDPOINT="$WORKDESK_URL/api/usage-state/otlp"
+export OTEL_EXPORTER_OTLP_HEADERS="x-workdesk-key=$WORKDESK_KEY"
 ```
 
 ---

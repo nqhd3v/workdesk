@@ -159,6 +159,40 @@ paths:
         "422": { $ref: "#/components/responses/InvalidPayload" }
         "500": { $ref: "#/components/responses/InternalError" }
 
+  /api/usage-state/otlp/{signal}:
+    post:
+      tags: [Usage state]
+      operationId: pushUsageStateOtlp
+      summary: Receive Claude Code OpenTelemetry exports (OTLP/HTTP)
+      description: |
+        Experimental. Requires a key with scope `usage_state`, sent via `OTEL_EXPORTER_OTLP_HEADERS`.
+        Point `OTEL_EXPORTER_OTLP_ENDPOINT` at `/api/usage-state/otlp`; exporters append `v1/metrics`, `v1/logs`
+        or `v1/traces`. Payloads are logged server-side only; nothing is stored yet.
+        Accepts `http/json` (recommended) and `http/protobuf`, optionally gzip-compressed. gRPC is not supported.
+      parameters:
+        - name: signal
+          in: path
+          required: true
+          schema: { type: string, enum: [v1/metrics, v1/logs, v1/traces] }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, description: "OTLP Export*ServiceRequest (JSON encoding)." }
+          application/x-protobuf:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          description: Accepted (empty Export*ServiceResponse).
+          content:
+            application/json:
+              example: {}
+        "400": { description: Body is not valid JSON. }
+        "401": { description: Missing, unknown, revoked or expired key. }
+        "403": { description: Key belongs to a different endpoint. }
+        "413": { description: Body exceeds 4 MB. }
+        "503": { description: Server problem; OTLP exporters retry. }
+
   /api/module/config:
     get:
       tags: [Module]
