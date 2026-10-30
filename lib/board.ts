@@ -8,14 +8,26 @@ export type BoardData = {
   hum_pct: number | null;
   // Current Claude session usage, 0 when no session is running.
   usage_pct: number | null;
+  // Module reported recently. Null until known (client only, or the database is unreachable).
+  sensor_online: boolean | null;
 };
+
+// Past this silence the module counts as disconnected and its last values are hidden.
+const SENSOR_OFFLINE_AFTER_MS = 10 * 60_000;
 
 // Shared by every visitor; caching keeps public polling off the database.
 export async function getBoardData(): Promise<BoardData> {
   "use cache";
   cacheLife({ revalidate: 15, expire: 60 });
 
-  const [reading, usage] = await Promise.all([
+  const [report, reading, usage] = await Promise.all([
+    // received_at, not reading ts: it comes from the server, device clocks can drift.
+    supabase
+      .from("module_reports")
+      .select("received_at")
+      .order("received_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ received_at: string }>(),
     supabase
       .from("module_readings")
       .select("temp_c, hum_pct")
@@ -30,14 +42,19 @@ export async function getBoardData(): Promise<BoardData> {
       .limit(1)
       .maybeSingle<{ session_pct: number; session_resets_at: string | null }>(),
   ]);
+  if (report.error) throw report.error;
   if (reading.error) throw reading.error;
   if (usage.error) throw usage.error;
+
+  const lastReport = report.data ? new Date(report.data.received_at).getTime() : 0;
+  const sensorOnline = Date.now() - lastReport < SENSOR_OFFLINE_AFTER_MS;
 
   const u = usage.data;
   const sessionOver = !u?.session_resets_at || new Date(u.session_resets_at).getTime() <= Date.now();
   return {
-    temp_c: reading.data?.temp_c ?? null,
-    hum_pct: reading.data?.hum_pct ?? null,
+    temp_c: sensorOnline ? (reading.data?.temp_c ?? null) : null,
+    hum_pct: sensorOnline ? (reading.data?.hum_pct ?? null) : null,
     usage_pct: u ? (sessionOver ? 0 : u.session_pct) : null,
+    sensor_online: sensorOnline,
   };
 }

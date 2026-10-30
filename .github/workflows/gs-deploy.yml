@@ -1,0 +1,70 @@
+name: Deploy Apps Script
+
+# Tests every change to gs/. Deploys only when gs/VERSION has a version with
+# no gs-v<version> tag yet, so bump that file to release.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "gs/**"
+      - ".github/workflows/gs-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gs-deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      # PageProps and LayoutProps live in .next/, which a fresh checkout doesn't have.
+      - run: npx --no-install next typegen
+      - run: npx --no-install tsc --noEmit
+      - run: npm run gs:test
+
+      - name: Find out whether this version is new
+        id: release
+        run: |
+          tag="gs-v$(cat gs/VERSION)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+            echo "new=false" >> "$GITHUB_OUTPUT"
+            echo "$tag is already deployed"
+          else
+            echo "new=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        if: steps.release.outputs.new == 'true'
+        run: npm run gs:build
+
+      - name: Configure clasp
+        if: steps.release.outputs.new == 'true'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          GAS_SCRIPT_ID: ${{ secrets.GAS_SCRIPT_ID }}
+        run: |
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          chmod 600 ~/.clasprc.json
+          printf '{"scriptId":"%s","rootDir":"gs/dist"}' "$GAS_SCRIPT_ID" > .clasp.json
+
+      # Triggers run the pushed code, so push is what releases it. The version is a rollback point.
+      - name: Deploy
+        if: steps.release.outputs.new == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          npx --no-install clasp push --force
+          npx --no-install clasp create-version "$TAG"
+          git tag "$TAG"
+          git push origin "$TAG"

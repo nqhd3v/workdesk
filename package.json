@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "gs:test": "tsx --test gs/test/*.test.ts",
+    "gs:build": "node gs/build.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -36,15 +38,19 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@google/clasp": "^3.4.1",
     "@tailwindcss/turbopack": "^4",
+    "@types/google-apps-script": "^2.0.14",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "supabase": "^2.122.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

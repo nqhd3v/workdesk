@@ -8,6 +8,6 @@ export async function GET() {
     return Response.json(await getBoardData(), { headers: { "cache-control": "no-store" } });
   } catch (err) {
     console.error("[verify:live]", err);
-    return Response.json({ temp_c: null, hum_pct: null, usage_pct: null }, { status: 503 });
+    return Response.json({ temp_c: null, hum_pct: null, usage_pct: null, sensor_online: null }, { status: 503 });
   }
 }

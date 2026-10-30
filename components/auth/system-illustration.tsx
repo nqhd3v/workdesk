@@ -5,6 +5,7 @@
 // Green dots = data up to the screen, blue squares = config back to devices.
 // Intro: each device boots "connecting" (red blinking LED, wifi pulse, no border);
 // once its --connect delay passes it goes green and its link/traffic/values appear.
+// If the sensor module stops reporting, its LED stays red and its link/traffic/values go away.
 // Values are live (polled from /verify/live): the sensor device and the screen's first row show
 // temperature + humidity, the other device and the screen's second row show a usage bar.
 // SVG + SMIL/CSS; motion is off for prefers-reduced-motion.
@@ -13,13 +14,13 @@ import { useEffect, useState } from "react";
 import type { BoardData } from "@/lib/board";
 
 const POLL_MS = 30_000;
-const EMPTY: BoardData = { temp_c: null, hum_pct: null, usage_pct: null };
+const EMPTY: BoardData = { temp_c: null, hum_pct: null, usage_pct: null, sensor_online: null };
 
 type Connect = { "--connect": string } & React.CSSProperties;
 
 const DEVICES = [
-  { id: "link-a", x: 20, y: 36, d: "M 70 92 V 182 H 104", dur: 2.6, connect: 1.6 },
-  { id: "link-b", x: 240, y: 268, d: "M 290 268 V 214 H 256", dur: 3.1, connect: 2.4 },
+  { id: "link-a", x: 20, y: 36, d: "M 70 86 V 182 H 110", dur: 2.6, connect: 1.6 },
+  { id: "link-b", x: 240, y: 268, d: "M 290 274 V 214 H 250", dur: 3.1, connect: 2.4 },
 ];
 
 const [SENSOR, USAGE] = DEVICES;
@@ -58,6 +59,7 @@ function connectStyle(seconds: number): Connect {
 
 export function SystemIllustration() {
   const data = useBoardData();
+  const sensorOffline = data.sensor_online === false;
   return (
     <svg
       aria-hidden
@@ -72,21 +74,22 @@ export function SystemIllustration() {
       </defs>
       <rect width="360" height="360" fill="url(#sys-grid)" />
 
-      {/* Connectors + traffic */}
-      {DEVICES.map(({ id, d, dur, connect }, i) => (
-        <g key={id} className="sys-online" style={connectStyle(connect)}>
-          <path id={id} d={d} className="sys-dash fill-none stroke-foreground/35" strokeWidth="1.25" />
-          {/* Negative begin: packets start mid-flight instead of idling at (0,0). */}
-          <g className="motion-reduce:hidden">
+      {/* Connectors + traffic. Paths run a few px under the cards so packets slide out from behind them. */}
+      {DEVICES.map(({ id, d, dur, connect }) => !(sensorOffline && id === SENSOR.id) && (
+        <g key={id}>
+          <path id={id} d={d} className="sys-online sys-dash fill-none stroke-foreground/35" strokeWidth="1.25" style={connectStyle(connect)} />
+          {/* Hidden until connected, so packets don't idle at (0,0). */}
+          <g visibility="hidden" className="motion-reduce:hidden">
+            <set attributeName="visibility" to="visible" begin={`${connect}s`} fill="freeze" />
             <circle r="3" className="fill-emerald-500">
-              <animateMotion dur={`${dur}s`} begin={`-${i * 0.8}s`} repeatCount="indefinite">
+              <animateMotion dur={`${dur}s`} begin={`${connect}s`} repeatCount="indefinite">
                 <mpath href={`#${id}`} />
               </animateMotion>
             </circle>
             <rect x="-2.5" y="-2.5" width="5" height="5" className="fill-none stroke-sky-500" strokeWidth="1.5">
               <animateMotion
                 dur={`${dur}s`}
-                begin={`-${i * 0.8 + dur / 2}s`}
+                begin={`${connect}s`}
                 repeatCount="indefinite"
                 keyPoints="1;0"
                 keyTimes="0;1"
@@ -101,7 +104,7 @@ export function SystemIllustration() {
 
       <Database x={196} y={92} />
       <Screen x={104} y={132} data={data} />
-      <DeviceCard x={SENSOR.x} y={SENSOR.y} connect={SENSOR.connect}>
+      <DeviceCard x={SENSOR.x} y={SENSOR.y} connect={SENSOR.connect} offline={sensorOffline}>
         <text x="10" y="47" fontSize="11" className="fill-foreground font-semibold tabular-nums">
           {fmtTemp(data.temp_c)}
         </text>
@@ -120,7 +123,19 @@ export function SystemIllustration() {
   );
 }
 
-function DeviceCard({ x, y, connect, children }: { x: number; y: number; connect: number; children: React.ReactNode }) {
+function DeviceCard({
+  x,
+  y,
+  connect,
+  offline = false,
+  children,
+}: {
+  x: number;
+  y: number;
+  connect: number;
+  offline?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <g transform={`translate(${x} ${y})`} style={connectStyle(connect)}>
       <rect width="100" height="56" rx="6" className="sys-border fill-card stroke-foreground/40" strokeWidth="1.25" />
@@ -131,13 +146,13 @@ function DeviceCard({ x, y, connect, children }: { x: number; y: number; connect
       <rect x="36" y="14" width="28" height="4" rx="2" className="fill-foreground/30" />
       <rect x="36" y="24" width="20" height="4" rx="2" className="fill-foreground/15" />
       {/* wifi: pulses while connecting, settles once online */}
-      <g className="sys-wifi fill-none stroke-foreground/60" strokeWidth="1.25" strokeLinecap="round">
+      <g className={`${offline ? "opacity-15" : "sys-wifi"} fill-none stroke-foreground/60`} strokeWidth="1.25" strokeLinecap="round">
         <circle cx="76" cy="20" r="0.9" className="fill-foreground/60 stroke-none" />
         <path d="M 73.5 17.5 A 3.5 3.5 0 0 1 78.5 17.5" />
         <path d="M 71.2 15.2 A 6.8 6.8 0 0 1 80.8 15.2" />
       </g>
-      {/* status led: red + blinking while connecting, then green */}
-      <circle cx="88" cy="16" r="3" className="sys-led fill-emerald-500" />
+      {/* status led: red + blinking while connecting, then green; solid red when offline */}
+      <circle cx="88" cy="16" r="3" className={offline ? "fill-red-500" : "sys-led fill-emerald-500"} />
       {/* live values, shown once online */}
       <g className="sys-online">{children}</g>
     </g>
