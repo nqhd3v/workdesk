@@ -124,7 +124,7 @@ function CreateKeyForm() {
           {scope && (
             <FieldDescription>
               {SCOPE_INFO[scope].sender}.
-              {scope === "module" && " Locks to the first device id it reports."}
+              {scope === "module" && " Registers the first device it reports, and works only for that device."}
             </FieldDescription>
           )}
         </Field>

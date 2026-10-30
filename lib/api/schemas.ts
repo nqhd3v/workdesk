@@ -16,6 +16,7 @@ export const modulePayload = z.object({
   v: z.literal(1),
   device: z.object({
     id: z.string().min(1).max(64),
+    name: z.string().trim().min(1).max(64).optional(),
     fw: z.string().max(32).optional(),
     uptime_s: z.int().nonnegative().optional(),
   }),

@@ -30,6 +30,7 @@ paths:
       description: |
         Requires a key with scope `module`. The first `device.id` sent with a key binds the key to that device;
         later reports with another `device.id` are rejected with `403 device_mismatch`.
+        Each device has one live key: a new key gets `403 device_taken` until the old one is revoked or expired.
 
         Readings are de-duplicated by `(device.id, ts)`, so retrying the same report is safe: the response
         `stored` counts only readings that were new.
@@ -40,7 +41,7 @@ paths:
             schema: { $ref: "#/components/schemas/ModuleReport" }
             example:
               v: 1
-              device: { id: workdesk-8734, fw: 0.4.0, uptime_s: 5423 }
+              device: { id: workdesk-8734, name: Desk sensor, fw: 0.4.0, uptime_s: 5423 }
               power: { source: battery, batt_mv: 3912, batt_pct: 71 }
               readings:
                 - { ts: 1793242800, temp_c: 28.16, hum_pct: 48.7, pressure_hpa: 1005.1, gas_ohm: 45881, iaq: null, batt_mv: 3915 }
@@ -63,7 +64,7 @@ paths:
         "400": { $ref: "#/components/responses/InvalidJson" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403":
-          description: Key belongs to another endpoint (`forbidden`) or another device (`device_mismatch`).
+          description: Key belongs to another endpoint (`forbidden`) or another device (`device_mismatch`), or the device already has a live key (`device_taken`).
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
@@ -226,6 +227,7 @@ components:
           required: [id]
           properties:
             id: { type: string, minLength: 1, maxLength: 64, description: Stable device identifier. }
+            name: { type: string, minLength: 1, maxLength: 64, description: Display name. Updated by each report that sends it. }
             fw: { type: string, maxLength: 32, description: Firmware version. }
             uptime_s: { type: integer, minimum: 0 }
         power:
@@ -342,7 +344,7 @@ components:
           properties:
             code:
               type: string
-              enum: [unauthorized, key_expired, forbidden, device_mismatch, invalid_json, payload_too_large, invalid_payload, rate_limited, internal_error]
+              enum: [unauthorized, key_expired, forbidden, device_mismatch, device_taken, invalid_json, payload_too_large, invalid_payload, rate_limited, internal_error]
             message: { type: string }
             issues:
               type: array

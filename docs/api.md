@@ -62,6 +62,7 @@ Errors share one shape:
 | 401 | `key_expired` | Key is past its expiry date | Ask the owner for a new key. |
 | 403 | `forbidden` | Key belongs to a different endpoint | Use the key created for this endpoint. |
 | 403 | `device_mismatch` | Module key already bound to another device | Use a separate key per device. |
+| 403 | `device_taken` | Another live key holds this device | Revoke that key, then retry. |
 | 413 | `payload_too_large` | Body > 256 KB | Send fewer readings per request. |
 | 422 | `invalid_payload` | Valid JSON, wrong shape/values. `issues[]` lists each field | Fix the fields listed. Do not retry as-is. |
 | 429 | `rate_limited` | Too many requests (`GET /api/module/config` only) | Wait `Retry-After` seconds (20), then retry. |
@@ -73,11 +74,12 @@ Errors share one shape:
 
 ## POST /api/module
 
-Environment report from an IoT module. Send one or many readings per request, e.g. buffer readings and flush every few minutes.
+Environment report from an IoT module. Send one or many readings per request. A module is shown as offline after 150 seconds of silence, so post at least every minute.
 
 **Preconditions**
 - Key scope `module`.
-- The first successful request binds the key to its `device.id`. Afterwards, any other `device.id` gets `403 device_mismatch`.
+- Each key belongs to one device. The first successful request binds the key to its `device.id` and registers the device. Afterwards, any other `device.id` gets `403 device_mismatch`.
+- Each device has one live key. A new key can take over a device only after the old key is revoked or expired, otherwise `403 device_taken`.
 - Device clock must be synced (NTP), because `ts` is validated against server time.
 
 **Idempotency:** readings are unique per `(device.id, ts)`. Re-sending a report after a timeout is safe: duplicates are skipped and `stored` counts only new readings.
@@ -88,6 +90,7 @@ Environment report from an IoT module. Send one or many readings per request, e.
 |---|---|---|---|
 | `v` | integer | yes | Must be `1` (payload format version). |
 | `device.id` | string | yes | 1–64 chars, stable per device. |
+| `device.name` | string | no | 1–64 chars. Display name, updated by each report that sends it. |
 | `device.fw` | string | no | ≤ 32 chars. |
 | `device.uptime_s` | integer | no | ≥ 0. |
 | `power.source` | string | no | ≤ 16 chars, e.g. `battery`, `usb`. |
@@ -115,7 +118,7 @@ curl -X POST "$WORKDESK_URL/api/module" \
   -H "x-workdesk-key: $WORKDESK_KEY" \
   -d '{
     "v": 1,
-    "device": { "id": "workdesk-8734", "fw": "0.4.0", "uptime_s": 5423 },
+    "device": { "id": "workdesk-8734", "name": "Desk sensor", "fw": "0.4.0", "uptime_s": 5423 },
     "power":  { "source": "battery", "batt_mv": 3912, "batt_pct": 71 },
     "readings": [
       { "ts": 1793242800, "temp_c": 28.16, "hum_pct": 48.7, "pressure_hpa": 1005.1, "gas_ohm": 45881, "iaq": null, "batt_mv": 3915 },

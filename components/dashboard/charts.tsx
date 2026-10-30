@@ -126,12 +126,12 @@ export function UsageChart({ data, axis }: { data: { t: number; session_pct: num
           <Line
             key={key}
             dataKey={key}
-            type="stepAfter"
+            type="linear"
             stroke={`var(--color-${key})`}
             strokeWidth={2}
             strokeLinejoin="round"
             strokeLinecap="round"
-            connectNulls={false}
+            connectNulls // reports are sparser than the buckets, so gaps are expected
             isAnimationActive={false}
             dot={false}
             activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}

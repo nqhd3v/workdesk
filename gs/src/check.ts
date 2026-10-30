@@ -18,6 +18,17 @@ export type CheckResult = "skipped" | "unchanged" | "synced";
 
 const NEXT_CHECK = "nextCheck";
 const MEETINGS = "meetings";
+export const CACHE_KEYS = [NEXT_CHECK, MEETINGS];
+
+/**
+ * DEV_MODE's clock: 08:30 on the latest Thursday when `real` is after 12:00 or on a weekend,
+ * otherwise `real` itself. On a Thursday afternoon that is the same day's 08:30.
+ */
+export function devDate(real: Date): Date {
+  const day = real.getDay();
+  if (day !== 0 && day !== 6 && real.getHours() < 12) return real;
+  return new Date(real.getFullYear(), real.getMonth(), real.getDate() - ((day - 4 + 7) % 7), 8, 30);
+}
 
 /** Mon-Fri, 08:30-17:00. Triggers can't be limited to working hours, so the script gates itself. */
 export function isWorkingTime(isoWeekday: number, hhmm: number): boolean {

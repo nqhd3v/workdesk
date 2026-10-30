@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 /** Re-fetches server data on an interval while the tab is visible, and on return to the tab. */
-export function AutoRefresh({ intervalMs = 60_000 }: { intervalMs?: number }) {
+export function AutoRefresh({ intervalMs = 30_000 }: { intervalMs?: number }) {
   const router = useRouter();
 
   useEffect(() => {

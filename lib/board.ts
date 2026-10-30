@@ -12,13 +12,14 @@ export type BoardData = {
   sensor_online: boolean | null;
 };
 
-// Past this silence the module counts as disconnected and its last values are hidden.
-const SENSOR_OFFLINE_AFTER_MS = 10 * 60_000;
+// Past this silence the module counts as disconnected. Modules post every minute, so this survives one
+// lost post, and leaves 30s for a page to catch up: a status changes within 3 minutes everywhere.
+export const MODULE_OFFLINE_AFTER_MS = 150_000;
 
 // Shared by every visitor; caching keeps public polling off the database.
 export async function getBoardData(): Promise<BoardData> {
   "use cache";
-  cacheLife({ revalidate: 15, expire: 60 });
+  cacheLife({ revalidate: 10, expire: 60 });
 
   const [report, reading, usage] = await Promise.all([
     // received_at, not reading ts: it comes from the server, device clocks can drift.
@@ -47,7 +48,7 @@ export async function getBoardData(): Promise<BoardData> {
   if (usage.error) throw usage.error;
 
   const lastReport = report.data ? new Date(report.data.received_at).getTime() : 0;
-  const sensorOnline = Date.now() - lastReport < SENSOR_OFFLINE_AFTER_MS;
+  const sensorOnline = Date.now() - lastReport < MODULE_OFFLINE_AFTER_MS;
 
   const u = usage.data;
   const sessionOver = !u?.session_resets_at || new Date(u.session_resets_at).getTime() <= Date.now();

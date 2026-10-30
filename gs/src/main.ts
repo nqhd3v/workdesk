@@ -1,4 +1,8 @@
-import { isWorkingTime, runCheck, type Meeting } from "./check";
+import { CACHE_KEYS, devDate, isWorkingTime, runCheck, type Meeting } from "./check";
+
+// Testing only: runs against a past Thursday morning outside working hours, see devDate(). Every run
+// checks and sends, and it replaces Workdesk's real event list. Keep this false on main.
+const DEV_MODE = false;
 
 const CACHE_TTL_S = 21_600; // CacheService's maximum, 6 hours. Losing a value only costs one extra check.
 const NO_TITLE = "(No title)";
@@ -42,7 +46,7 @@ function pushEvents(meetings: Meeting[], now: number) {
 
 /** Trigger entry point. */
 export function checkMeetings() {
-  const date = new Date();
+  const date = DEV_MODE ? devDate(new Date()) : new Date();
   const zone = Session.getScriptTimeZone();
   const isoWeekday = Number(Utilities.formatDate(date, zone, "u"));
   const hhmm = Number(Utilities.formatDate(date, zone, "HHmm"));
@@ -50,6 +54,7 @@ export function checkMeetings() {
 
   const now = Math.floor(date.getTime() / 1000);
   const store = CacheService.getScriptCache();
+  if (DEV_MODE) store.removeAll(CACHE_KEYS);
   const result = runCheck({
     now,
     cache: {
@@ -59,7 +64,7 @@ export function checkMeetings() {
     loadMeetings: () => loadRemaining(date),
     pushEvents: (meetings) => pushEvents(meetings, now),
   });
-  console.log(`checkMeetings: ${result}`);
+  console.log(`checkMeetings: ${result}${DEV_MODE ? ` (DEV_MODE, as of ${date.toISOString()})` : ""}`);
 }
 
 /** Run once by hand after the first deploy. Safe to re-run: it replaces the existing trigger. */

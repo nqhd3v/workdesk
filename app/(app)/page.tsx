@@ -10,14 +10,14 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Skeleton } from "@/components/ui/skeleton";
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { MetricChart, UsageChart } from "@/components/dashboard/charts";
+import { SystemMap } from "@/components/dashboard/system-map";
 import { TIMEZONE } from "@/lib/api/time";
+import { MODULE_OFFLINE_AFTER_MS } from "@/lib/board";
 import { getDashboardData, parseRange, RANGES, type DashboardData, type ModuleLatest, type RangeKey, type UsageLatest } from "@/lib/dashboard";
+import { dayLabel, fromNow, timeFormat } from "@/lib/format";
 import { cn } from "cn";
 
 export const metadata: Metadata = { title: "Dashboard · Workdesk" };
-
-// A module that hasn't reported for this long is shown as offline.
-const STALE_MS = 15 * 60_000;
 
 // Access is gated in proxy.ts (owner session required).
 export default function DashboardPage({ searchParams }: PageProps<"/">) {
@@ -58,8 +58,13 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/">, "searchParams">)
       <AutoRefresh />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <RangePicker active={range} />
-        <p className="text-xs text-muted-foreground">Updated {timeFormat.format(now)} · refreshes every minute</p>
+        <p className="text-xs text-muted-foreground">Updated {timeFormat.format(now)} · refreshes every 30s</p>
       </div>
+
+      {/* Too small to read on a phone, and the sections below show the same data. */}
+      <Card className="hidden overflow-hidden bg-muted/60 p-0 md:block">
+        <SystemMap data={data} />
+      </Card>
 
       <section className="flex flex-col gap-3" aria-labelledby="env-heading">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -96,34 +101,10 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/">, "searchParams">)
   );
 }
 
-// --- Formatting (server-side, fixed timezone, so hydration never depends on the browser) ---
-
-const timeFormat = new Intl.DateTimeFormat("en-GB", { timeZone: TIMEZONE, hour: "2-digit", minute: "2-digit" });
-const dayFormat = new Intl.DateTimeFormat("en-GB", { timeZone: TIMEZONE, weekday: "short", day: "numeric", month: "short" });
-const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: TIMEZONE, year: "numeric", month: "2-digit", day: "2-digit" });
-const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto", style: "short" });
-
 function formatDuration(seconds: number) {
   if (seconds < 3600) return `${seconds / 60} min`;
   const h = seconds / 3600;
   return h === 1 ? "hour" : `${h} hours`;
-}
-
-/** "3 min ago", "in 2 hr", "in 4 days": the largest unit that fits. */
-function fromNow(t: number, now: number) {
-  const diffS = Math.round((t - now) / 1000);
-  const abs = Math.abs(diffS);
-  if (abs < 60) return diffS <= 0 ? "just now" : "in <1 min";
-  if (abs < 3600) return relative.format(Math.trunc(diffS / 60), "minute");
-  if (abs < 86_400) return relative.format(Math.trunc(diffS / 3600), "hour");
-  return relative.format(Math.trunc(diffS / 86_400), "day");
-}
-
-function dayLabel(t: number, now: number) {
-  const day = dayKey.format(t);
-  if (day === dayKey.format(now)) return "Today";
-  if (day === dayKey.format(now + 86_400_000)) return "Tomorrow";
-  return dayFormat.format(t);
 }
 
 // BME680-style IAQ bands.
@@ -158,14 +139,14 @@ function RangePicker({ active }: { active: RangeKey }) {
 
 function DeviceStatus({ device, now }: { device: DashboardData["module"]["device"]; now: number }) {
   if (!device) return <span className="text-xs text-muted-foreground">No module has reported yet.</span>;
-  const online = now - device.received_at < STALE_MS;
+  const online = now - device.received_at < MODULE_OFFLINE_AFTER_MS;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
       <Badge variant="outline" className="gap-1">
         {online ? <CheckCircleIcon weight="fill" className="text-status-good" /> : <WarningIcon weight="fill" className="text-status-warning" />}
         {online ? "Online" : "Offline"}
       </Badge>
-      <span className="text-foreground">{device.device_id}</span>
+      <span className="text-foreground">{device.name ?? device.device_id}</span>
       {device.fw && <span>fw {device.fw}</span>}
       {device.batt_pct !== null && (
         <span className="inline-flex items-center gap-1">

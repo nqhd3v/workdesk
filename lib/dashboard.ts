@@ -30,9 +30,11 @@ export type ModuleLatest = {
 
 export type DeviceStatus = {
   device_id: string;
+  name: string | null;
   fw: string | null;
   batt_pct: number | null;
   power_source: string | null;
+  wifi_ssid: string | null;
   wifi_rssi: number | null;
   received_at: number;
 };
@@ -56,6 +58,8 @@ export type DashboardData = {
   module: { series: ModulePoint[]; latest: ModuleLatest | null; device: DeviceStatus | null };
   usage: { tool: UsageTool; series: UsagePoint[]; latest: UsageLatest | null }[];
   events: DashboardEvent[];
+  /** When the calendar last sent a snapshot (epoch ms). */
+  eventsSyncedAt: number | null;
 };
 
 type StoredEvent = { id: string | null; title: string; starts_at: string; ends_at: string };
@@ -94,7 +98,7 @@ export async function getDashboardData(range: RangeKey): Promise<DashboardData> 
       .limit(30),
     supabase
       .from("module_reports")
-      .select("device_id, fw, batt_pct, power_source, wifi_rssi, received_at")
+      .select("device_id, name:payload->device->>name, fw, batt_pct, power_source, wifi_ssid, wifi_rssi, received_at")
       .order("received_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -109,7 +113,7 @@ export async function getDashboardData(range: RangeKey): Promise<DashboardData> 
           .maybeSingle(),
       ),
     ),
-    supabase.from("event_snapshots").select("events").order("received_at", { ascending: false }).limit(1).maybeSingle(),
+    supabase.from("event_snapshots").select("events, received_at").order("received_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
   for (const r of [moduleSeries, usageSeries, readings, report, snapshot, ...latestUsage]) if (r.error) throw r.error;
 
@@ -173,9 +177,11 @@ export async function getDashboardData(range: RangeKey): Promise<DashboardData> 
       device: d
         ? {
             device_id: d.device_id,
+            name: d.name,
             fw: d.fw,
             batt_pct: d.batt_pct,
             power_source: d.power_source,
+            wifi_ssid: d.wifi_ssid,
             wifi_rssi: d.wifi_rssi,
             received_at: ms(d.received_at),
           }
@@ -183,5 +189,6 @@ export async function getDashboardData(range: RangeKey): Promise<DashboardData> 
     },
     usage,
     events,
+    eventsSyncedAt: snapshot.data ? ms(snapshot.data.received_at) : null,
   };
 }

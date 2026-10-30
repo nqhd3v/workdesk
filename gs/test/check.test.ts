@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isWorkingTime, runCheck, runningMeetingEnd, type Meeting } from "../src/check";
+import { devDate, isWorkingTime, runCheck, runningMeetingEnd, type Meeting } from "../src/check";
 
 const at = (h: number, m = 0) => h * 3600 + m * 60;
 const meeting = (id: string, start: number, end: number): Meeting => ({ id, title: id, start, end });
@@ -96,6 +96,23 @@ test("runningMeetingEnd only sees a meeting in progress", () => {
   assert.equal(runningMeetingEnd(meetings, at(9)), at(10));
   assert.equal(runningMeetingEnd(meetings, at(10)), null);
   assert.equal(runningMeetingEnd(meetings, at(12, 30)), at(13));
+});
+
+test("devDate moves afternoons and weekends to the latest Thursday 08:30", () => {
+  const thursday = new Date(2026, 9, 29, 8, 30); // Thu 29 Oct 2026
+  const expectThursday = (real: Date) => assert.equal(devDate(real).getTime(), thursday.getTime());
+
+  expectThursday(new Date(2026, 9, 29, 15, 0)); // Thu afternoon
+  expectThursday(new Date(2026, 9, 30, 12, 0)); // Fri, exactly noon
+  expectThursday(new Date(2026, 9, 31, 9, 0)); // Sat morning
+  expectThursday(new Date(2026, 10, 1, 20, 0)); // Sun night, across a month
+  expectThursday(new Date(2026, 10, 2, 13, 0)); // Mon afternoon
+  expectThursday(new Date(2026, 10, 4, 12, 30)); // Wed afternoon
+});
+
+test("devDate keeps a weekday morning as it is", () => {
+  const morning = new Date(2026, 9, 30, 11, 59); // Fri
+  assert.equal(devDate(morning), morning);
 });
 
 test("isWorkingTime is Mon-Fri 08:30-17:00", () => {

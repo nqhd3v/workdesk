@@ -11,12 +11,11 @@
 // SVG + SMIL/CSS; motion is off for prefers-reduced-motion.
 
 import { useEffect, useState } from "react";
+import { connectStyle, Database, Droplet, GridBackdrop, ProgressBar, Traffic } from "@/components/system/parts";
 import type { BoardData } from "@/lib/board";
 
-const POLL_MS = 30_000;
+const POLL_MS = 15_000;
 const EMPTY: BoardData = { temp_c: null, hum_pct: null, usage_pct: null, sensor_online: null };
-
-type Connect = { "--connect": string } & React.CSSProperties;
 
 const DEVICES = [
   { id: "link-a", x: 20, y: 36, d: "M 70 86 V 182 H 110", dur: 2.6, connect: 1.6 },
@@ -53,10 +52,6 @@ function useBoardData() {
   return data;
 }
 
-function connectStyle(seconds: number): Connect {
-  return { "--connect": `${seconds}s` };
-}
-
 export function SystemIllustration() {
   const data = useBoardData();
   const sensorOffline = data.sensor_online === false;
@@ -67,39 +62,11 @@ export function SystemIllustration() {
       preserveAspectRatio="xMidYMid meet"
       className="absolute inset-0 size-full text-foreground"
     >
-      <defs>
-        <pattern id="sys-grid" width="18" height="18" patternUnits="userSpaceOnUse">
-          <circle cx="1" cy="1" r="0.8" className="fill-foreground/10" />
-        </pattern>
-      </defs>
-      <rect width="360" height="360" fill="url(#sys-grid)" />
+      <GridBackdrop width={360} height={360} />
 
-      {/* Connectors + traffic. Paths run a few px under the cards so packets slide out from behind them. */}
+      {/* Connectors + traffic */}
       {DEVICES.map(({ id, d, dur, connect }) => !(sensorOffline && id === SENSOR.id) && (
-        <g key={id}>
-          <path id={id} d={d} className="sys-online sys-dash fill-none stroke-foreground/35" strokeWidth="1.25" style={connectStyle(connect)} />
-          {/* Hidden until connected, so packets don't idle at (0,0). */}
-          <g visibility="hidden" className="motion-reduce:hidden">
-            <set attributeName="visibility" to="visible" begin={`${connect}s`} fill="freeze" />
-            <circle r="3" className="fill-emerald-500">
-              <animateMotion dur={`${dur}s`} begin={`${connect}s`} repeatCount="indefinite">
-                <mpath href={`#${id}`} />
-              </animateMotion>
-            </circle>
-            <rect x="-2.5" y="-2.5" width="5" height="5" className="fill-none stroke-sky-500" strokeWidth="1.5">
-              <animateMotion
-                dur={`${dur}s`}
-                begin={`${connect}s`}
-                repeatCount="indefinite"
-                keyPoints="1;0"
-                keyTimes="0;1"
-                calcMode="linear"
-              >
-                <mpath href={`#${id}`} />
-              </animateMotion>
-            </rect>
-          </g>
-        </g>
+        <Traffic key={id} id={id} d={d} dur={dur} connect={connect} />
       ))}
 
       <Database x={196} y={92} />
@@ -155,67 +122,6 @@ function DeviceCard({
       <circle cx="88" cy="16" r="3" className={offline ? "fill-red-500" : "sys-led fill-emerald-500"} />
       {/* live values, shown once online */}
       <g className="sys-online">{children}</g>
-    </g>
-  );
-}
-
-function Database({ x, y }: { x: number; y: number }) {
-  const w = 72;
-  const rx = w / 2;
-  const ry = 9;
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <path
-        d={`M 0 ${ry} V 70 A ${rx} ${ry} 0 0 0 ${w} 70 V ${ry}`}
-        className="fill-card stroke-foreground/40"
-        strokeWidth="1.25"
-      />
-      <ellipse cx={rx} cy={ry} rx={rx} ry={ry} className="fill-card stroke-foreground/40" strokeWidth="1.25" />
-      {[24, 40].map((cy, k) => (
-        <path
-          key={cy}
-          d={`M 0 ${cy} A ${rx} ${ry} 0 0 0 ${w} ${cy}`}
-          className="sys-blink fill-none stroke-foreground/30"
-          strokeWidth="1.25"
-          style={{ animationDelay: `${k * 0.4}s` }}
-        />
-      ))}
-    </g>
-  );
-}
-
-function Droplet({ x, y }: { x: number; y: number }) {
-  return (
-    <path
-      transform={`translate(${x} ${y})`}
-      d="M 3.5 0 C 3.5 0 0 4 0 6 A 3.5 3.5 0 0 0 7 6 C 7 4 3.5 0 3.5 0 Z"
-      className="fill-sky-500/70"
-    />
-  );
-}
-
-function barColor(pct: number) {
-  if (pct >= 90) return "fill-red-500";
-  if (pct >= 70) return "fill-amber-500";
-  return "fill-emerald-500";
-}
-
-/** Track + fill. Grows in when its group comes online, then eases between polled values. */
-function ProgressBar({ x, y, width, height, pct }: { x: number; y: number; width: number; height: number; pct: number | null }) {
-  const value = Math.min(100, Math.max(0, pct ?? 0));
-  const r = height / 2;
-  return (
-    <g transform={`translate(${x} ${y})`}>
-      <rect width={width} height={height} rx={r} className="fill-foreground/10" />
-      <g className="sys-grow">
-        <rect
-          width={width}
-          height={height}
-          rx={r}
-          className={`transition-[transform,fill] duration-700 ease-out ${barColor(value)}`}
-          style={{ transform: `scaleX(${value / 100})`, transformBox: "fill-box", transformOrigin: "left" }}
-        />
-      </g>
     </g>
   );
 }
