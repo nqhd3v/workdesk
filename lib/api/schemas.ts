@@ -84,11 +84,19 @@ const usageWindow = z.object({
   resets_at: unixSeconds(30 * DAY_S).nullable(),
 });
 
-export const usageStatePayload = z.object({
-  // Which tool these limits belong to.
-  name: z.enum(USAGE_TOOLS),
-  measured_at: unixSeconds(),
-  session: usageWindow,
-  week: usageWindow.extend({ resets_at: unixSeconds(30 * DAY_S) }),
-});
+// `name` says which tool these limits belong to, and each tool has its own windows.
+export const usageStatePayload = z.discriminatedUnion("name", [
+  z.object({
+    name: z.literal("claude"),
+    measured_at: unixSeconds(),
+    session: usageWindow,
+    week: usageWindow.extend({ resets_at: unixSeconds(30 * DAY_S) }),
+  }),
+  z.object({
+    name: z.literal("copilot"),
+    measured_at: unixSeconds(),
+    // 32 days: a full 31-day month, plus room for clock skew.
+    month: usageWindow.extend({ resets_at: unixSeconds(32 * DAY_S) }),
+  }),
+]);
 export type UsageStatePayload = z.infer<typeof usageStatePayload>;

@@ -15,7 +15,7 @@ export const GET = readRoute("module", { limit: 10, windowS: 60, retryAfterS: 20
       USAGE_TOOLS.map((name) =>
         supabase
           .from("usage_states")
-          .select("name, measured_at, session_pct, session_resets_at, week_pct, week_resets_at")
+          .select("name, measured_at, session_pct, session_resets_at, week_pct, week_resets_at, month_pct, month_resets_at")
           .eq("name", name)
           .order("measured_at", { ascending: false })
           .limit(1)
@@ -43,8 +43,12 @@ export const GET = readRoute("module", { limit: 10, windowS: 60, retryAfterS: 20
       .map((u) => ({
         name: u.name,
         measured_at: unix(u.measured_at),
-        session: { used_pct: u.session_pct, resets_at: unixOrNull(u.session_resets_at) },
-        week: { used_pct: u.week_pct, resets_at: unix(u.week_resets_at) },
+        ...(u.name === "copilot"
+          ? { month: { used_pct: u.month_pct, resets_at: unixOrNull(u.month_resets_at) } }
+          : {
+              session: { used_pct: u.session_pct, resets_at: unixOrNull(u.session_resets_at) },
+              week: { used_pct: u.week_pct, resets_at: unix(u.week_resets_at) },
+            }),
       })),
     events,
   };

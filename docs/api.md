@@ -201,7 +201,7 @@ function pushEvents() {
 ## POST /api/usage-state
 
 Current plan usage limits for one tool (`claude` or `copilot`). Each request is stored as a point in time, so Workdesk can chart usage over time.
-Usage is grouped per limit window, so new windows can be added later without breaking senders.
+Usage is grouped per limit window, and each tool sends only the windows it has: `session` and `week` for `claude`, `month` for `copilot`.
 
 **Preconditions**
 - Key scope `usage_state`.
@@ -212,10 +212,12 @@ Usage is grouped per limit window, so new windows can be added later without bre
 |---|---|---|---|
 | `name` | string | yes | Tool the limits belong to: `claude` or `copilot`. |
 | `measured_at` | integer | yes | When the values were read, Unix seconds. |
-| `session.used_pct` | number | yes | 0–100. |
-| `session.resets_at` | integer \| null | yes | When the session limit resets, Unix seconds (≤ 30 days ahead). `null` while no session is active (a session starts with the first message). |
-| `week.used_pct` | number | yes | 0–100. |
-| `week.resets_at` | integer | yes | When the weekly limit resets, Unix seconds (≤ 30 days ahead). |
+| `session.used_pct` | number | `claude` | 0–100. |
+| `session.resets_at` | integer \| null | `claude` | When the session limit resets, Unix seconds (≤ 30 days ahead). `null` while no session is active (a session starts with the first message). |
+| `week.used_pct` | number | `claude` | 0–100. |
+| `week.resets_at` | integer | `claude` | When the weekly limit resets, Unix seconds (≤ 30 days ahead). |
+| `month.used_pct` | number | `copilot` | 0–100. |
+| `month.resets_at` | integer | `copilot` | When the monthly limit resets, Unix seconds (≤ 32 days ahead). |
 
 Send absolute reset times, not "hours left": a relative value goes stale as soon as the request is delayed.
 
@@ -237,14 +239,13 @@ curl -X POST "$WORKDESK_URL/api/usage-state" \
 { "server_time": 1793260801 }
 ```
 
-No active session:
+Copilot:
 
 ```json
 {
   "name": "copilot",
   "measured_at": 1793260800,
-  "session": { "used_pct": 0, "resets_at": null },
-  "week":    { "used_pct": 18, "resets_at": 1793606400 }
+  "month": { "used_pct": 74.5, "resets_at": 1793491200 }
 }
 ```
 
@@ -293,6 +294,11 @@ curl "$WORKDESK_URL/api/module/config" -H "x-workdesk-key: $WORKDESK_KEY"
       "measured_at": 1793260800,
       "session": { "used_pct": 42.5, "resets_at": 1793273400 },
       "week":    { "used_pct": 18,   "resets_at": 1793606400 }
+    },
+    {
+      "name": "copilot",
+      "measured_at": 1793260800,
+      "month": { "used_pct": 74.5, "resets_at": 1793491200 }
     }
   ],
   "events": [

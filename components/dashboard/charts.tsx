@@ -3,7 +3,7 @@
 import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 
-type TimeAxis = {
+export type TimeAxis = {
   /** IANA zone; formatting with a fixed zone keeps server and client output identical. */
   timeZone: string;
   /** Range is longer than a day: ticks show dates instead of times. */
@@ -112,17 +112,26 @@ export function MetricChart({
 const usageConfig = {
   session_pct: { label: "Session", color: "var(--chart-1)" },
   week_pct: { label: "Week", color: "var(--chart-2)" },
+  month_pct: { label: "Month", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
-/** Session and weekly limit usage (%) over time for one tool. Same unit, so one axis. */
-export function UsageChart({ data, axis }: { data: { t: number; session_pct: number | null; week_pct: number | null }[]; axis: TimeAxis }) {
+/** Limit usage (%) over time for one tool, one line per window. Same unit, so one axis. */
+export function UsageChart({
+  data,
+  windows,
+  axis,
+}: {
+  data: { t: number; session_pct: number | null; week_pct: number | null; month_pct: number | null }[];
+  windows: readonly (keyof typeof usageConfig)[];
+  axis: TimeAxis;
+}) {
   return (
     <ChartContainer config={usageConfig} className="aspect-auto h-44 w-full">
       <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} accessibilityLayer>
         <Axes axis={axis} domain={[0, 100]} unit="%" />
         {tooltip(axis, "%", usageConfig)}
         <ChartLegend content={<ChartLegendContent />} verticalAlign="top" />
-        {(["session_pct", "week_pct"] as const).map((key) => (
+        {windows.map((key) => (
           <Line
             key={key}
             dataKey={key}

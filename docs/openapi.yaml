@@ -121,9 +121,9 @@ paths:
       summary: Record the current plan usage state
       description: |
         Requires a key with scope `usage_state`. Each request is stored as a point in time, building a history.
-        `name` identifies the tool the limits belong to (`claude` or `copilot`).
-        Usage is grouped per limit window (`session`, `week`); `session.resets_at` is `null` while no session is
-        active (a session starts with the first message).
+        `name` identifies the tool the limits belong to, and each tool sends its own limit windows:
+        `session` and `week` for `claude`, `month` for `copilot`. `session.resets_at` is `null` while no session
+        is active (a session starts with the first message).
       requestBody:
         required: true
         content:
@@ -136,12 +136,11 @@ paths:
                   measured_at: 1793260800
                   session: { used_pct: 42.5, resets_at: 1793273400 }
                   week: { used_pct: 18, resets_at: 1793606400 }
-              noSession:
+              copilot:
                 value:
                   name: copilot
                   measured_at: 1793260800
-                  session: { used_pct: 0, resets_at: null }
-                  week: { used_pct: 18, resets_at: 1793606400 }
+                  month: { used_pct: 74.5, resets_at: 1793491200 }
       responses:
         "201":
           description: State recorded.
@@ -185,6 +184,9 @@ paths:
                     measured_at: 1793260800
                     session: { used_pct: 42.5, resets_at: 1793273400 }
                     week: { used_pct: 18, resets_at: 1793606400 }
+                  - name: copilot
+                    measured_at: 1793260800
+                    month: { used_pct: 74.5, resets_at: 1793491200 }
                 events:
                   - { id: abc123, title: Standup, start: 1793264400, end: 1793265300 }
                 server_time: 1793260801
@@ -291,16 +293,25 @@ components:
         resets_at:
           type: [integer, "null"]
           minimum: 1704067200
-          description: When this window resets, Unix seconds. Up to 30 days in the future.
+          description: When this window resets, Unix seconds. Up to 30 days in the future, or 32 for `month`.
 
     UsageState:
+      oneOf:
+        - { $ref: "#/components/schemas/ClaudeUsageState" }
+        - { $ref: "#/components/schemas/CopilotUsageState" }
+      discriminator:
+        propertyName: name
+        mapping:
+          claude: "#/components/schemas/ClaudeUsageState"
+          copilot: "#/components/schemas/CopilotUsageState"
+
+    ClaudeUsageState:
       type: object
       required: [name, measured_at, session, week]
       properties:
         name:
           type: string
-          enum: [claude, copilot]
-          description: Tool these limits belong to.
+          const: claude
         measured_at: { $ref: "#/components/schemas/UnixSeconds" }
         session:
           allOf: [{ $ref: "#/components/schemas/UsageWindow" }]
@@ -312,6 +323,22 @@ components:
               properties:
                 resets_at: { type: integer }
           description: Weekly limit. `resets_at` is always set.
+
+    CopilotUsageState:
+      type: object
+      required: [name, measured_at, month]
+      properties:
+        name:
+          type: string
+          const: copilot
+        measured_at: { $ref: "#/components/schemas/UnixSeconds" }
+        month:
+          allOf:
+            - { $ref: "#/components/schemas/UsageWindow" }
+            - type: object
+              properties:
+                resets_at: { type: integer }
+          description: Monthly limit. `resets_at` is always set.
 
     ModuleConfig:
       type: object

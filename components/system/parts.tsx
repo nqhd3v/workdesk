@@ -1,4 +1,4 @@
-// Pieces shared by the login illustration and the dashboard's system map.
+// Pieces of the login illustration.
 // Motion comes from the .sys-* classes in globals.css and is off for prefers-reduced-motion.
 
 type Connect = { "--connect": string } & React.CSSProperties;

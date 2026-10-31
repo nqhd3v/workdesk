@@ -1,13 +1,23 @@
+import { CopyField } from "@/components/auth/copy-field";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
+import { generateSecret, getQrDataUrl } from "@/lib/auth/totp";
+import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { CaretDownIcon } from "@phosphor-icons/react/dist/ssr";
-import { CopyField } from "@/components/auth/copy-field";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Skeleton } from "@/components/ui/skeleton";
-import { generateSecret, getQrDataUrl } from "@/lib/auth/totp";
 import { SetupConfirm } from "./setup-confirm";
 
 export const metadata: Metadata = { title: "Setup TOTP · Workdesk" };
@@ -44,10 +54,22 @@ async function SetupBody() {
   return (
     <div className="flex flex-col gap-4">
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL */}
-      <img src={qr} alt="TOTP QR code" width={240} height={240} className="mx-auto bg-white" />
+      <img
+        src={qr}
+        alt="TOTP QR code"
+        width={240}
+        height={240}
+        className="mx-auto bg-white"
+      />
       <Collapsible className="flex flex-col gap-2">
         <CollapsibleTrigger
-          render={<Button variant="ghost" size="sm" className="group/trigger self-start" />}
+          render={
+            <Button
+              variant="ghost"
+              size="sm"
+              className="group/trigger self-start"
+            />
+          }
         >
           Can&apos;t scan? Enter key manually
           <CaretDownIcon className="transition-transform group-data-[panel-open]/trigger:rotate-180" />

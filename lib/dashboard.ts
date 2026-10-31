@@ -17,7 +17,7 @@ export type UsageTool = (typeof USAGE_TOOLS)[number];
 
 /** One chart point. `t` is epoch ms (bucket start); null values break the line. */
 export type ModulePoint = { t: number; temp_c: number | null; hum_pct: number | null; pressure_hpa: number | null; iaq: number | null };
-export type UsagePoint = { t: number; session_pct: number | null; week_pct: number | null };
+export type UsagePoint = { t: number; session_pct: number | null; week_pct: number | null; month_pct: number | null };
 
 export type ModuleLatest = {
   temp_c: number | null;
@@ -42,11 +42,13 @@ export type DeviceStatus = {
 export type UsageLatest = {
   name: UsageTool;
   measured_at: number;
-  /** 0 once the session has reset. */
-  session_pct: number;
+  /** Null for a tool without this window. 0 once the session has reset. */
+  session_pct: number | null;
   session_resets_at: number | null;
-  week_pct: number;
-  week_resets_at: number;
+  week_pct: number | null;
+  week_resets_at: number | null;
+  month_pct: number | null;
+  month_resets_at: number | null;
 };
 
 export type DashboardEvent = { id: string | null; title: string; start: number; end: number };
@@ -64,7 +66,7 @@ export type DashboardData = {
 
 type StoredEvent = { id: string | null; title: string; starts_at: string; ends_at: string };
 type ModuleBucketRow = { bucket: string; temp_c: number | null; hum_pct: number | null; pressure_hpa: number | null; iaq: number | null };
-type UsageBucketRow = { bucket: string; name: UsageTool; session_pct: number; week_pct: number };
+type UsageBucketRow = { bucket: string; name: UsageTool; session_pct: number | null; week_pct: number | null; month_pct: number | null };
 type ReadingRow = { ts: string; temp_c: number | null; hum_pct: number | null; pressure_hpa: number | null; iaq: number | null };
 
 const ms = (iso: string) => new Date(iso).getTime();
@@ -106,7 +108,7 @@ export async function getDashboardData(range: RangeKey): Promise<DashboardData> 
       USAGE_TOOLS.map((name) =>
         supabase
           .from("usage_states")
-          .select("name, measured_at, session_pct, session_resets_at, week_pct, week_resets_at")
+          .select("name, measured_at, session_pct, session_resets_at, week_pct, week_resets_at, month_pct, month_resets_at")
           .eq("name", name)
           .order("measured_at", { ascending: false })
           .limit(1)
@@ -146,16 +148,18 @@ export async function getDashboardData(range: RangeKey): Promise<DashboardData> 
       tool,
       series: grid.map((t) => {
         const r = usageByKey.get(`${tool}:${t}`);
-        return { t, session_pct: round(r?.session_pct ?? null, 1), week_pct: round(r?.week_pct ?? null, 1) };
+        return { t, session_pct: round(r?.session_pct ?? null, 1), week_pct: round(r?.week_pct ?? null, 1), month_pct: round(r?.month_pct ?? null, 1) };
       }),
       latest: u
         ? {
             name: tool,
             measured_at: ms(u.measured_at),
-            session_pct: sessionOver ? 0 : u.session_pct,
+            session_pct: u.session_pct === null ? null : sessionOver ? 0 : u.session_pct,
             session_resets_at: sessionOver ? null : sessionResetsAt,
             week_pct: u.week_pct,
-            week_resets_at: ms(u.week_resets_at),
+            week_resets_at: u.week_resets_at ? ms(u.week_resets_at) : null,
+            month_pct: u.month_pct,
+            month_resets_at: u.month_resets_at ? ms(u.month_resets_at) : null,
           }
         : null,
     };
