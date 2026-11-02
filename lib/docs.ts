@@ -6,7 +6,7 @@ import GithubSlugger from "github-slugger";
 const DOCS_DIR = path.join(process.cwd(), "docs");
 
 // Static content: cached so pages using it prerender at build time.
-export async function readDoc(file: "api.md" | "openapi.yaml") {
+export async function readDoc(file: "api.md" | "firmware.md" | "openapi.yaml") {
   "use cache";
   return readFile(path.join(DOCS_DIR, file), "utf8");
 }

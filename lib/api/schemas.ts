@@ -38,7 +38,8 @@ export const modulePayload = z.object({
         gas_ohm: z.int().nonnegative().nullable(),
         iaq: z.number().min(0).max(500).nullable(),
         batt_mv: z.int().nonnegative().nullable(),
-      }).partial({ temp_c: true, hum_pct: true, pressure_hpa: true, gas_ohm: true, iaq: true, batt_mv: true }),
+        lux: z.number().min(0).max(100_000).nullable(),
+      }).partial({ temp_c: true, hum_pct: true, pressure_hpa: true, gas_ohm: true, iaq: true, batt_mv: true, lux: true }),
     )
     .min(1)
     .max(1000),

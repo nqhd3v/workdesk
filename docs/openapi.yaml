@@ -189,6 +189,7 @@ paths:
                     month: { used_pct: 74.5, resets_at: 1793491200 }
                 events:
                   - { id: abc123, title: Standup, start: 1793264400, end: 1793265300 }
+                firmware: { version: 1.2.3 }
                 server_time: 1793260801
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -260,6 +261,7 @@ components:
         pressure_hpa: { type: [number, "null"], minimum: 300, maximum: 1200 }
         gas_ohm: { type: [integer, "null"], minimum: 0 }
         iaq: { type: [number, "null"], minimum: 0, maximum: 500, description: Indoor air quality index. }
+        lux: { type: [number, "null"], minimum: 0, maximum: 100000, description: Light level. }
         batt_mv: { type: [integer, "null"], minimum: 0 }
 
     EventsSnapshot:
@@ -342,7 +344,7 @@ components:
 
     ModuleConfig:
       type: object
-      required: [usage_states, events, server_time]
+      required: [usage_states, events, firmware, server_time]
       properties:
         usage_states:
           type: array
@@ -359,6 +361,12 @@ components:
               title: { type: string }
               start: { type: integer, description: Unix seconds. }
               end: { type: integer, description: Unix seconds. }
+        firmware:
+          type: object
+          required: [version]
+          description: Latest firmware release. A hint only, the module verifies the signed release itself.
+          properties:
+            version: { type: string }
         server_time: { $ref: "#/components/schemas/ServerTime" }
 
     Error:

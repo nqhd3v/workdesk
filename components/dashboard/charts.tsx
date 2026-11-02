@@ -54,7 +54,8 @@ function tooltip(axis: TimeAxis, unit: string, chartConfig: ChartConfig) {
       cursor={{ strokeWidth: 1 }}
       content={
         <ChartTooltipContent
-          indicator="line"
+          // "line" nests the label inside a single-series row, which the formatter below replaces.
+          indicator="dot"
           labelFormatter={(_, payload) => fmt.full(payload[0]?.payload.t)}
           formatter={(value, name, item) => (
             <div className="flex w-full items-center gap-2">
@@ -89,7 +90,8 @@ export function MetricChart({
   const chartConfig = { value: { label, color: "var(--chart-1)" } } satisfies ChartConfig;
   return (
     <ChartContainer config={chartConfig} className="aspect-auto h-36 w-full">
-      <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} accessibilityLayer>
+      {/* Same syncId: hovering one sensor shows the same moment on the others. */}
+      <AreaChart data={data} syncId="module-metrics" margin={{ top: 8, right: 8, left: 0, bottom: 0 }} accessibilityLayer>
         <Axes axis={axis} domain={domain} />
         {tooltip(axis, unit, chartConfig)}
         <Area
@@ -115,34 +117,80 @@ const usageConfig = {
   month_pct: { label: "Month", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
+type UsagePoint = { t: number; session_pct: number | null; week_pct: number | null; month_pct: number | null };
+type UsageKey = keyof typeof usageConfig;
+
+// Usage only climbs within a window, so a lower value belongs to the next one: a reset, not a decline.
+const linked = (a: number | null | undefined, b: number | null | undefined) => !!a && !!b && b >= a;
+
+// Line curve that lifts the pen instead of drawing downwards. SVG y grows towards the bottom.
+const risingOnly: Extract<React.ComponentProps<typeof Line>["type"], (...args: never[]) => unknown> = (context) => {
+  let prevY: number | undefined;
+  return {
+    areaStart() {},
+    areaEnd() {},
+    lineStart() {
+      prevY = undefined;
+    },
+    lineEnd() {},
+    point(x, y) {
+      if (prevY === undefined || y > prevY) context.moveTo(x, y);
+      else context.lineTo(x, y);
+      prevY = y;
+    },
+  };
+};
+
+/**
+ * 0% means the tool wasn't used, so it leaves a gap in the line. Reports are sparser than the buckets,
+ * so empty buckets between two linked values are filled in a straight line instead of breaking it.
+ */
+function usageLine(data: UsagePoint[], key: UsageKey) {
+  const values: (number | null)[] = data.map((p) => p[key]);
+  values.forEach((value, i) => {
+    if (value !== null) return;
+    const prev = values[i - 1];
+    const nextAt = values.findIndex((v, j) => j > i && v !== null);
+    const next = values[nextAt];
+    if (prev && next && linked(prev, next)) values[i] = Number((prev + (next - prev) / (nextAt - i + 1)).toFixed(1));
+  });
+  return values.map((value) => value || null);
+}
+
 /** Limit usage (%) over time for one tool, one line per window. Same unit, so one axis. */
 export function UsageChart({
   data,
   windows,
   axis,
 }: {
-  data: { t: number; session_pct: number | null; week_pct: number | null; month_pct: number | null }[];
-  windows: readonly (keyof typeof usageConfig)[];
+  data: UsagePoint[];
+  windows: readonly UsageKey[];
   axis: TimeAxis;
 }) {
+  const lines = windows.map((key) => ({ key, values: usageLine(data, key) }));
+  const rows = data.map((p, i) => ({ ...p, ...Object.fromEntries(lines.map(({ key, values }) => [key, values[i]])) }));
   return (
     <ChartContainer config={usageConfig} className="aspect-auto h-44 w-full">
-      <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} accessibilityLayer>
+      <LineChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }} accessibilityLayer>
         <Axes axis={axis} domain={[0, 100]} unit="%" />
         {tooltip(axis, "%", usageConfig)}
         <ChartLegend content={<ChartLegendContent />} verticalAlign="top" />
-        {windows.map((key) => (
+        {lines.map(({ key, values }) => (
           <Line
             key={key}
             dataKey={key}
-            type="linear"
+            type={risingOnly}
             stroke={`var(--color-${key})`}
             strokeWidth={2}
             strokeLinejoin="round"
             strokeLinecap="round"
-            connectNulls // reports are sparser than the buckets, so gaps are expected
+            connectNulls={false}
             isAnimationActive={false}
-            dot={false}
+            // A value linked to neither neighbour draws no line, so it needs a dot to show at all.
+            dot={({ key: dotKey, cx, cy, index }) => {
+              const alone = values[index] !== null && !linked(values[index - 1], values[index]) && !linked(values[index], values[index + 1]);
+              return <circle key={dotKey} cx={cx} cy={cy} r={alone ? 2 : 0} fill={`var(--color-${key})`} />;
+            }}
             activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--card)" }}
           />
         ))}

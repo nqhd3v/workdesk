@@ -103,6 +103,7 @@ Environment report from an IoT module. Send one or many readings per request. A 
 | `readings[].pressure_hpa` | number \| null | no | 300–1200. |
 | `readings[].gas_ohm` | integer \| null | no | ≥ 0. |
 | `readings[].iaq` | number \| null | no | 0–500. |
+| `readings[].lux` | number \| null | no | 0–100000. Send `null` or leave it out without a light sensor. |
 | `readings[].batt_mv` | integer \| null | no | ≥ 0. |
 | `wifi.ssid` | string | no | ≤ 64 chars. |
 | `wifi.rssi` | integer | no | −127–0 dBm. |
@@ -268,14 +269,17 @@ Read-only; nothing is stored.
 | `usage_states[]` | array | Latest state per tool. A tool that never reported is absent, so the array can be empty. |
 | `usage_states[].name` | string | `claude` or `copilot`. |
 | `usage_states[].measured_at` | integer | When the sender read the values, Unix seconds. Use it to show staleness. |
-| `usage_states[].session.used_pct` | number | 0–100. |
-| `usage_states[].session.resets_at` | integer \| null | Unix seconds; `null` while no session is active. |
-| `usage_states[].week.used_pct` | number | 0–100. |
-| `usage_states[].week.resets_at` | integer | Unix seconds. |
+| `usage_states[].session.used_pct` | number | `claude` only. 0–100. |
+| `usage_states[].session.resets_at` | integer \| null | `claude` only. Unix seconds; `null` while no session is active. |
+| `usage_states[].week.used_pct` | number | `claude` only. 0–100. |
+| `usage_states[].week.resets_at` | integer | `claude` only. Unix seconds. |
+| `usage_states[].month.used_pct` | number | `copilot` only. 0–100. |
+| `usage_states[].month.resets_at` | integer | `copilot` only. Unix seconds. |
 | `events[]` | array | From the latest events push, only events that haven't ended yet, sorted by `start`. Can be empty. |
 | `events[].id` | string \| null | Source id, if the sender gave one. |
 | `events[].title` | string | |
 | `events[].start` / `events[].end` | integer | Unix seconds. |
+| `firmware.version` | string | Latest firmware release. A hint only: the module verifies the signed release itself before using it. |
 | `server_time` | integer | Server clock, Unix seconds. Use it to set the module clock or compute countdowns. |
 
 The response is never cached; always read `server_time` from the same response you render.
@@ -304,6 +308,7 @@ curl "$WORKDESK_URL/api/module/config" -H "x-workdesk-key: $WORKDESK_KEY"
   "events": [
     { "id": "abc123", "title": "Standup", "start": 1793264400, "end": 1793265300 }
   ],
+  "firmware": { "version": "1.2.3" },
   "server_time": 1793260801
 }
 ```

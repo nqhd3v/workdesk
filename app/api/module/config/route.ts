@@ -1,3 +1,4 @@
+import release from "@/firmware/latest.json";
 import { readRoute } from "@/lib/api/handler";
 import { USAGE_TOOLS } from "@/lib/api/schemas";
 import { supabase } from "@/lib/supabase/admin";
@@ -51,5 +52,6 @@ export const GET = readRoute("module", { limit: 10, windowS: 60, retryAfterS: 20
             }),
       })),
     events,
+    firmware: { version: release.version },
   };
 });

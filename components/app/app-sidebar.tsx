@@ -1,8 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { DesktopIcon, SignOutIcon } from "@phosphor-icons/react";
+import { SignOutIcon } from "@phosphor-icons/react";
 import {
   Sidebar,
   SidebarContent,
@@ -30,9 +31,7 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link href="/" />}>
-              <div className="flex aspect-square size-8 items-center justify-center bg-primary text-primary-foreground">
-                <DesktopIcon className="size-4" />
-              </div>
+              <Image src="/icon.svg" alt="" width={32} height={32} unoptimized className="size-8 shrink-0" />
               <span className="font-bold">Workdesk</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
