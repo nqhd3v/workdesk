@@ -58,6 +58,7 @@ static bool clock_big = false;
 // pages
 static lv_obj_t *scr_page[UI_PAGE_COUNT];
 static lv_obj_t *c_code, *c_sub;
+static lv_obj_t *m_title, *m_range, *m_count, *m_hint;
 #if LV_USE_QRCODE
 static lv_obj_t *c_qr;
 #define CODE_X -98 // code and hint centered in the space left of the QR
@@ -292,6 +293,21 @@ static void pages_create(void)
     lv_obj_center(c_qr);
 #endif
 
+    // meeting reminder
+    page_create(UI_PAGE_MEETING, "MEETING");
+    s = scr_page[UI_PAGE_MEETING];
+    m_title = label(s, &jbm_m22, C_INK, "");
+    lv_label_set_long_mode(m_title, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(m_title, SCR_W - 2 * PAD - 8);
+    lv_obj_set_style_text_align(m_title, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(m_title, LV_ALIGN_TOP_MID, 0, BAR_H + 12);
+    m_range = label(s, &jbm_r15, C_DIM, "");
+    lv_obj_align(m_range, LV_ALIGN_TOP_MID, 0, BAR_H + 42);
+    m_count = label(s, &jbm_b96, C_AMBER, "--:--");
+    lv_obj_align(m_count, LV_ALIGN_TOP_MID, 0, BAR_H + 80);
+    m_hint = label(s, &jbm_r13, C_DIM, "BOOT = dismiss");
+    lv_obj_align(m_hint, LV_ALIGN_BOTTOM_MID, 0, -8);
+
     // OTA overlay (top layer, above every screen)
     // spinner = still alive (progress can stall on weak Wi-Fi), bar = progress / reboot countdown
     ota_box = box(lv_layer_top(), 0, 0, SCR_W, SCR_H, C_BG, 0);
@@ -336,6 +352,28 @@ void ui_set_code(const char *code, int secs_left)
     }
     lv_label_set_text_fmt(c_sub, "workdesk.local  \xC2\xB7  expires in %d s", secs_left);
     lv_obj_align(c_sub, LV_ALIGN_BOTTOM_MID, CODE_X, -20);
+}
+
+void ui_set_meeting(const char *title, const char *range, int secs)
+{
+    if (strcmp(lv_label_get_text(m_title), title)) lv_label_set_text(m_title, title);
+    bool up = secs <= 0;
+    char t[64];
+    if (up) snprintf(t, sizeof t, "TIME'S UP  \xC2\xB7  %s", range);
+    else snprintf(t, sizeof t, "%s", range);
+    if (strcmp(lv_label_get_text(m_range), t)) {
+        lv_label_set_text(m_range, t);
+        lv_obj_set_style_text_color(m_range, up ? C_AMBER : C_DIM, 0);
+        lv_obj_align(m_range, LV_ALIGN_TOP_MID, 0, BAR_H + 42);
+    }
+    if (up) secs = 0;
+    if (secs > 99 * 60 + 59) secs = 99 * 60 + 59;
+    snprintf(t, sizeof t, "%02d:%02d", secs / 60, secs % 60);
+    if (strcmp(lv_label_get_text(m_count), t)) {
+        lv_label_set_text(m_count, t);
+        lv_obj_set_style_text_color(m_count, up ? C_RED : C_AMBER, 0);
+        lv_obj_align(m_count, LV_ALIGN_TOP_MID, 0, BAR_H + 80);
+    }
 }
 
 static void ota_show(bool spin, lv_color_t color, const char *title, const char *sub, int bar_pct)
@@ -751,10 +789,10 @@ static void tile_set_usage(tile_t *t, int session_pct, int week_pct, bool stale)
     if (stale != t->stale) {
         t->stale = stale;
         lv_obj_set_style_img_recolor(t->icon, c, 0);
-        lv_obj_set_style_text_color(t->pct, c, 0);
         lv_obj_set_style_line_color(t->line, c, 0);
         if (t->mini) lv_obj_set_style_bg_color(t->mini_fill, c, 0);
     }
+    lv_obj_set_style_text_color(t->pct, session_pct < 0 ? C_DIM : c, 0); // "--" (e.g. no session) always grey
     set_pct_text(t->pct, session_pct);
     tile_set_progress(t, session_pct);
     if (!t->mini) return;

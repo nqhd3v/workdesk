@@ -15,8 +15,8 @@ void ui_set_time(int hour, int min, int sec, int wday /*0=Sun*/, int mday, int m
 // Pass NAN (from <math.h>) for any value that is not available yet -> shows "--".
 void ui_set_env(float temp_c, float hum_pct, int iaq /* <0 = unknown */, int iaq_acc /* 0 = warm-up .. 3 */, float lux); // NAN temp / lux = sensor not there: hidden
 
-// pct < 0 -> "--" and an empty border.
-// Usage tiles: border + big % = session, "WK" = week; -1 = "--"; stale = last values in grey.
+// Usage tiles: border + big % = session, "WK" = week; -1 = "--" in grey with an empty border
+// (also used for "no active session"); stale = last values in grey.
 void ui_set_claude(int session_pct, int week_pct, bool stale);
 void ui_set_copilot(int month_pct, bool stale);
 // Which AI tiles are shown. None -> the clock grows to fill the left side.
@@ -42,12 +42,12 @@ void ui_setup_msg(const char *msg, bool error);
 void ui_setup_mac(const char *mac); // "aa:bb:..." plus " *" when custom
 
 // Pages, switched with the BOOT button. Showing a page also leaves the setup screen.
-typedef enum { UI_PAGE_HOME, UI_PAGE_CODE, UI_PAGE_COUNT } ui_page_t;
+// MEETING is shown by the reminder (not by BOOT): BOOT on it dismisses it.
+typedef enum { UI_PAGE_HOME, UI_PAGE_CODE, UI_PAGE_MEETING, UI_PAGE_COUNT } ui_page_t;
 void ui_show_page(ui_page_t page);
 
-// title NULL -> "no more meetings". secs: until start, or until end when running. more: later meetings.
-// state: 0 = counting down, 1 = done for today, 2 = day off
-// n key/value pairs: kv[0] key, kv[1] value, ... (max 12)
+// Meeting reminder: title (UTF-8), "14:00-14:30", secs until start as mm:ss; <= 0 = "00:00" + TIME'S UP.
+void ui_set_meeting(const char *title, const char *range, int secs);
 void ui_set_code(const char *code, int secs_left); // web login code and its countdown
 
 // Connecting screen (boot, while saved networks are tried). Updates the status line when shown.

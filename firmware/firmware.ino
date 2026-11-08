@@ -15,7 +15,11 @@
  *   - BOOT short press: HOME <-> web login code (back home when the code expires or is used).
  *     With a new firmware downloaded, the press on HOME installs it instead.
  *   - Local web page (web.cpp) at http://workdesk.local: live data + settings (settings.cpp):
- *     brightness, NORMAL / SAVE BATTERY, night screen-off (BOOT wakes it 30 s), temp offset.
+ *     brightness, NORMAL / SAVE BATTERY, night screen-off (BOOT wakes it 30 s), temp offset,
+ *     meeting reminder time.
+ *   - Meeting reminder: N min (settings, default 5, 0 = off) before a meeting from the backend's
+ *     events, a page with the title, time range and an mm:ss countdown, then TIME'S UP for 60 s.
+ *     It lights the screen during night screen-off. BOOT dismisses it.
  *
  * Board settings (Arduino IDE, esp32 core >= 3.3.0):
  *   Board ESP32S3 Dev Module · USB CDC On Boot: Enabled · Flash Mode QIO 80MHz
@@ -51,7 +55,7 @@
 #include "env.h"
 #include "logq.h"
 
-#define FW_VERSION "0.9.5"
+#define FW_VERSION "0.9.6"
 
 // ---- pins (from Waveshare examples) ----------------------------------------
 #define PIN_LCD_CS    6
@@ -73,6 +77,7 @@
 #define PIN_VBUS_SENSE -1  // e.g. 2; -1 = not fitted
 #define WAKE_MS         30000  // BOOT during night screen-off: screen on this long
 #define CODE_MIN_BRIGHTNESS 50 // % on the login code page: it has to be readable, whatever the settings
+#define MEET_HOLD_S     60     // meeting reminder: TIME'S UP stays this long after the start
 
 #define LCD_H_RES 536
 #define LCD_V_RES 240
@@ -240,6 +245,7 @@ static uint32_t wake_at = 0;                         // BOOT pressed while off
 static bool ota_active = false;                      // update / reboot overlay up: keep the screen lit
 static uint32_t ota_err_at = 0;                      // failed update shown since (0 = not shown)
 static int bright_sent = -1;                         // last level sent to the panel
+static time_t meet_start = 0, meet_dismissed = 0;    // reminder on screen / dismissed with BOOT (meeting start)
 
 // A code exists only while its page is up, so nobody can log in without seeing the screen.
 static void toggle_code_page() {
@@ -264,6 +270,7 @@ static void button_loop() {
       if (screen_off) wake_at = now ? now : 1;  // first press only wakes the screen
       else if (net_state() == NET_PORTAL) { if (net_has_creds()) net_stop_portal(); }
       else if (conn_shown) conn_skip = true;
+      else if (page == UI_PAGE_MEETING) { meet_dismissed = meet_start; page = UI_PAGE_HOME; }
       else if (page == UI_PAGE_HOME && fwupdate_install()) {}  // waiting update goes first, see the status bar
       else toggle_code_page();
     }
@@ -300,6 +307,21 @@ static void reboot_overlay_loop() {
   lvgl_unlock();
 }
 
+// ---- meeting reminder ------------------------------------------------------------
+// The first meeting that starts within the reminder time (settings), or started less than
+// MEET_HOLD_S ago, unless BOOT dismissed it. -1 = none.
+static int meeting_due(const api_data_t &api, time_t now) {
+  int lead = settings().remind_min * 60;
+  if (!lead) return -1;
+  for (int i = 0; i < api.n_meetings; i++) {
+    const api_meeting_t &m = api.meetings[i];
+    if (m.start == meet_dismissed || now - m.start >= MEET_HOLD_S) continue;
+    if (m.start - now <= lead) return i;
+    break;  // sorted by start: the rest are later
+  }
+  return -1;
+}
+
 // ---- display: brightness, power mode, night screen-off ----------------------------
 static bool in_night(const struct tm &lt) {
   const settings_t &s = settings();
@@ -321,7 +343,7 @@ static int brightness_level() {
 static void apply_brightness(bool synced, const struct tm &lt) {
   bool woken = wake_at && millis() - wake_at < WAKE_MS;
   if (!woken) wake_at = 0;
-  screen_off = synced && in_night(lt) && !woken && net_state() != NET_PORTAL && !ota_active && page != UI_PAGE_CODE;
+  screen_off = synced && in_night(lt) && !woken && net_state() != NET_PORTAL && !ota_active && page != UI_PAGE_CODE && page != UI_PAGE_MEETING;
   int level = screen_off ? 0 : brightness_level();
   if (level != bright_sent) {
     panel_brightness(level);
@@ -454,6 +476,13 @@ void loop() {
   bool feed_ok = api.valid && t - api.fetched_at < API_GET_STALE_S;
   auto stale = [&](const api_usage_t &u) { return !feed_ok || !u.present || t - u.measured_at > API_STALE_S; };
   bool stale_claude = stale(api.claude), stale_copilot = stale(api.copilot);
+  // No running Claude session (resets_at null or passed): "--" in grey instead of 0 %.
+  bool claude_idle = synced && (!api.claude.session_reset || api.claude.session_reset <= t);
+
+  int meet = synced ? meeting_due(api, t) : -1;
+  if (meet >= 0 && page == UI_PAGE_HOME) page = UI_PAGE_MEETING;  // the code page isn't interrupted
+  if (page == UI_PAGE_MEETING && meet < 0) page = UI_PAGE_HOME;
+  meet_start = meet >= 0 ? api.meetings[meet].start : 0;
 
   if (page == UI_PAGE_CODE && !web_code_left()) page = UI_PAGE_HOME;
 
@@ -506,10 +535,10 @@ void loop() {
       if (d != dot) { dot = d; ui_set_sync(d); }
     }
     static int stale_shown = -1;
-    int stale_key = stale_claude | stale_copilot << 1;
+    int stale_key = stale_claude | stale_copilot << 1 | claude_idle << 2;
     if (api_new || stale_key != stale_shown) {  // values first, so a tile that appears is already filled in
       stale_shown = stale_key;
-      ui_set_claude(api.claude.seen ? api.claude.session_pct : -1, api.claude.seen ? api.claude.week_pct : -1, stale_claude);
+      ui_set_claude(api.claude.seen && !claude_idle ? api.claude.session_pct : -1, api.claude.seen ? api.claude.week_pct : -1, stale_claude);
       ui_set_copilot(api.copilot.seen ? api.copilot.month_pct : -1, stale_copilot);
     }
     ui_set_tiles(api.claude.seen, api.copilot.seen);
@@ -519,6 +548,15 @@ void loop() {
     }
 
     if (view == V_PAGE && page == UI_PAGE_CODE) ui_set_code(web_code(), web_code_left());
+    if (view == V_PAGE && page == UI_PAGE_MEETING) {
+      const api_meeting_t &m = api.meetings[meet];
+      struct tm a, b;
+      localtime_r(&m.start, &a);
+      localtime_r(&m.end, &b);
+      char range[16];
+      snprintf(range, sizeof range, "%02d:%02d-%02d:%02d", a.tm_hour, a.tm_min, b.tm_hour, b.tm_min);
+      ui_set_meeting(m.title, range, (int)(m.start - t));
+    }
     ui_set_update(fwupdate_ready());
     apply_brightness(synced, lt);
     lvgl_unlock();

@@ -3,7 +3,7 @@
 //                        ?code=<login code> (the QR on the code page): the login page posts it itself
 //   POST /api/login      code=<login code>: sets the session cookie
 //   GET  /api/status     live JSON
-//   POST /api/settings   JSON with any settings fields, returns the full settings
+//   POST /api/settings   JSON with any settings fields (remind_min: 0 = off .. 60), returns the full settings
 //   POST /api/backend    {"url","key"}: Workdesk base URL + module API key (NVS)
 //   POST /update         firmware upload (multipart, field "firmware"), then reboot after the warning:
 //                        curl -u admin:<code> -F firmware=@firmware.ino.bin http://workdesk.local/update
@@ -156,6 +156,7 @@ static void settings_json(JsonObject o)
     o["night_start"] = t;
     snprintf(t, sizeof t, "%02d:%02d", s.night_end / 60, s.night_end % 60);
     o["night_end"] = t;
+    o["remind_min"] = s.remind_min;
 }
 
 static void send_json(JsonDocument &doc)
@@ -255,10 +256,11 @@ static void handle_settings()
     if (in["night_off"].is<bool>()) s.night_off = in["night_off"].as<bool>();
     if (in["night_start"].is<const char *>()) s.night_start = parse_hhmm(in["night_start"], s.night_start);
     if (in["night_end"].is<const char *>()) s.night_end = parse_hhmm(in["night_end"], s.night_end);
+    if (in["remind_min"].is<int>()) s.remind_min = constrain(in["remind_min"].as<int>(), 0, REMIND_MAX_MIN);
     settings_set(s);
-    Serial.printf("[web] settings: bright %d, mode %s, offset %.1f, night %d %d-%d\n", s.brightness,
+    Serial.printf("[web] settings: bright %d, mode %s, offset %.1f, night %d %d-%d, remind %d min\n", s.brightness,
                   mode_name(settings().mode), settings().temp_offset, settings().night_off,
-                  settings().night_start, settings().night_end);
+                  settings().night_start, settings().night_end, settings().remind_min);
     JsonDocument doc;
     settings_json(doc.to<JsonObject>());
     send_json(doc);
@@ -334,6 +336,8 @@ border-radius:8px;padding:8px 14px;color:#4fd1e8;opacity:0;transition:opacity .3
 <input type=radio name=mode id=m1 value=save_battery><label for=m1>SAVE BATTERY</label></div></div>
 <div class=row><label for=no>Screen off at night</label><input type=checkbox id=no></div>
 <div class=row><span>From / to</span><span><input type=time id=ns> <input type=time id=ne></span></div>
+<h3>MEETINGS</h3>
+<div class=row><label for=rm>Remind before (min, 0 = off)</label><input type=number id=rm step=1 min=0 max=60></div>
 <h3>SENSOR</h3>
 <div class=row><label for=to>Temperature offset (&deg;C)</label><input type=number id=to step=0.1 min=-10 max=10></div>
 <h3>FIRMWARE</h3>
@@ -346,7 +350,7 @@ function toast(m){$('t').textContent=m;$('t').style.opacity=1;setTimeout(()=>$('
 function up(n){const h=Math.floor(n/3600),m=Math.floor(n/60)%60;return (h>23?Math.floor(h/24)+'d ':'')+(h%24)+'h '+m+'m'}
 function fill(s){$('br').value=s.brightness;$('brv').textContent=s.brightness+'%'+(s.mode=='save_battery'&&s.brightness>30?' (max 30)':'');
 $(s.mode=='save_battery'?'m1':'m0').checked=true;$('no').checked=s.night_off;$('ns').value=s.night_start;$('ne').value=s.night_end;
-$('to').value=s.temp_offset}
+$('to').value=s.temp_offset;$('rm').value=s.remind_min}
 async function poll(){try{const r=await fetch('/api/status');if(r.status==401)return location.reload();const d=await r.json();const e=d.env,p=d.power,v=d.device;
 for(const[id,key]of[['tempc','temp_c'],['humc','hum_pct'],['luxc','lux']])$(id).style.display=e[key]==null?'none':'';
 $('temp').innerHTML=e.temp_c==null?'--':e.temp_c+'<small> &deg;C</small>';
@@ -369,6 +373,7 @@ document.querySelectorAll('[name=mode]').forEach(i=>i.onchange=()=>save({mode:i.
 $('no').onchange=()=>save({night_off:$('no').checked});
 $('ns').onchange=()=>save({night_start:$('ns').value});$('ne').onchange=()=>save({night_end:$('ne').value});
 $('to').onchange=()=>save({temp_offset:+$('to').value});
+$('rm').onchange=()=>save({remind_min:Math.round(+$('rm').value)});
 poll();setInterval(poll,2000);
 </script></body></html>)HTML";
 

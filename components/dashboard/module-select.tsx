@@ -1,20 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useDashboardPending } from "@/components/dashboard/pending";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type ModuleOption = { value: string; label: string; href: string };
 
 /** Picks the module in focus; the URL holds the choice, so it survives refreshes. */
 export function ModuleSelect({ options, value }: { options: ModuleOption[]; value: string }) {
-  const router = useRouter();
+  const { navigate } = useDashboardPending();
   return (
     <Select
       items={options}
       value={value}
       onValueChange={(id) => {
         const option = options.find((o) => o.value === id);
-        if (option) router.push(option.href, { scroll: false });
+        if (option) navigate(option.href);
       }}
     >
       <SelectTrigger size="sm" aria-label="IoT module" className="max-w-56">

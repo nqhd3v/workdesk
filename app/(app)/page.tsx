@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { CalendarBlankIcon, CellSignalHighIcon, BatteryMediumIcon, CheckCircleIcon, PlugsIcon, ThermometerIcon, WarningIcon, WarningOctagonIcon } from "@phosphor-icons/react/dist/ssr";
@@ -12,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AutoRefresh } from "@/components/dashboard/auto-refresh";
 import { ModuleMap } from "@/components/dashboard/module-map";
 import { ModuleSelect, type ModuleOption } from "@/components/dashboard/module-select";
+import { DashboardPendingProvider, PendingContent, PendingLink } from "@/components/dashboard/pending";
 import { MetricChart, UsageChart, type TimeAxis } from "@/components/dashboard/charts";
 import { TIMEZONE } from "@/lib/api/time";
 import { MODULE_OFFLINE_AFTER_MS } from "@/lib/board";
@@ -64,14 +64,14 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/">, "searchParams">)
   const labels = moduleLabels(modules);
 
   return (
-    <>
+    <DashboardPendingProvider>
       <AutoRefresh intervalMs={15_000} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <RangePicker active={range} moduleId={selected?.module.id} />
         <p className="text-xs text-muted-foreground">Updated {timeFormat.format(now)} · refreshes every 15s</p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <PendingContent className="grid gap-4 lg:grid-cols-3">
         <EventsCard events={data.events} syncedAt={data.eventsSyncedAt} keyActive={data.eventsKeyActive} now={now} />
         <UsageCard usage={data.usage} axis={axis} now={now} className="lg:col-span-2" />
         <ModuleMap
@@ -95,8 +95,8 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/">, "searchParams">)
           now={now}
           className="lg:col-span-3"
         />
-      </div>
-    </>
+      </PendingContent>
+    </DashboardPendingProvider>
   );
 }
 
@@ -146,15 +146,14 @@ function RangePicker({ active, moduleId }: { active: RangeKey; moduleId?: string
   return (
     <nav aria-label="Time range" className="flex">
       {(Object.keys(RANGES) as RangeKey[]).map((key) => (
-        <Link
+        <PendingLink
           key={key}
           href={dashboardHref(key, moduleId)}
           aria-current={key === active ? "page" : undefined}
           className={cn(buttonVariants({ variant: key === active ? "default" : "outline", size: "sm" }), "-ml-px first:ml-0")}
-          scroll={false}
         >
           {key}
-        </Link>
+        </PendingLink>
       ))}
     </nav>
   );

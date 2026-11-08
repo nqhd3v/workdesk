@@ -11,9 +11,11 @@ struct settings_t {
     bool night_off;        // screen off between night_start and night_end
     uint16_t night_start;  // minutes after midnight
     uint16_t night_end;
+    uint8_t remind_min;    // meeting reminder this many minutes before the start, 0 = off
 };
 
 #define SAVE_BATTERY_MAX_BRIGHTNESS 30  // %
+#define REMIND_MAX_MIN 60
 
 void settings_begin();
 const settings_t &settings();

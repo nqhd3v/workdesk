@@ -97,6 +97,7 @@ Secrets stay in the board's storage, never in the firmware image.
 | Press on home | Shows the web login code |
 | Press on home, update waiting | Installs the update |
 | Press on login code screen | Back to home |
+| Press on meeting reminder | Dismisses it |
 | Press during night screen-off | Wakes the screen for 30 s |
 | Press on connecting screen | Skips it |
 | Press on setup screen | Cancels, if a network is saved |
@@ -105,11 +106,15 @@ Secrets stay in the board's storage, never in the firmware image.
 ### Home screen
 
 - **Status bar:** sync dot, Wi-Fi, SD card size and battery. The dot is yellow while uploading, green after an upload, red when offline or failing, and gray when idle.
-- **Claude tile:** big number and border show session usage. `WK` shows weekly usage.
+- **Claude tile:** big number and border show session usage, or a gray `--` when no session is running. `WK` shows weekly usage.
 - **Copilot tile:** big number and border show monthly usage.
 - **Tiles:** a tile appears once data arrives, and turns gray when data is old. With no tiles, the clock gets bigger.
 
 Missing values show `--`.
+
+### Meeting reminder
+
+Before a meeting from your calendar starts, the board switches to a reminder with the title, time range and an `mm:ss` countdown. At the start it shows `TIME'S UP` for 1 minute, then goes back home. The reminder lights the screen during night screen-off. Set how early it appears on the web page.
 
 ### Web page
 
@@ -127,6 +132,7 @@ The page shows live readings, firmware status, and these settings:
 | Brightness | 5–100% |
 | Mode | Normal, or Save Battery, which limits brightness to 30% |
 | Screen off at night | Start and end time |
+| Remind before | 0–60 min before a meeting, 0 turns reminders off. Default 5 |
 | Temperature offset | −10 to 10 °C |
 
 ## Sync and offline

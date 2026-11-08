@@ -20,7 +20,9 @@ hardware-specific decisions briefly, skip web basics.
 - [ ] BOOT short press: web login code page, QR signs in from a phone, screen at least 50 % — written, not yet verified on hardware
 - [x] OTA over HTTP (`POST /update`) verified on hardware; on-screen progress + 5 s reboot warning
 - [ ] OTA via ArduinoOTA/espota — board side works, but macOS blocks python LAN UDP (Local Network privacy)
-- [ ] Meeting / end-of-work bomb countdown + alerts
+- [x] Meeting reminder page (`UI_PAGE_MEETING`): `remind_min` before start (web setting, default 5, 0 = off),
+      mm:ss countdown, TIME'S UP held 60 s, BOOT dismisses — written, not yet verified on hardware
+- [ ] End-of-work bomb countdown + alerts
 - [ ] Power modes (deep sleep, presence via phone BLE, IMU wake)
 - [ ] VBUS sense mod (see Hardware) to tell USB from battery
 
@@ -87,7 +89,7 @@ fwupdate.cpp / .h   background update: /api/module/config reports the version, s
 fw_pubkey.h         public key that latest.sig is checked against (private key: ~/.config/workdesk/firmware-signing.pem)
 build_opt.h         -DUPDATE_SIGN, turns on the core's signature verifier
 web.cpp / web.h     local web page while connected: http://workdesk.local, one-time login code (BOOT shows it, 1 min, single use)
-settings.cpp / .h   user settings in NVS "cfg": brightness, NORMAL / SAVE BATTERY, night off, temp offset
+settings.cpp / .h   user settings in NVS "cfg": brightness, NORMAL / SAVE BATTERY, night off, temp offset, meeting remind minutes
 env.cpp / env.h     optional BME680 (BSEC2) and BH1750, found while running, in their own task (PSRAM stack), calibration state in NVS "bsec"
 logq.cpp / logq.h   reading log + upload queue on SD: /log/cur.csv, /log/q/NNNNNNNN.csv, /log/boots.csv
 (contracts: ../docs/api.md + openapi.yaml — POST /api/module, GET /api/module/config; user guide: ../docs/firmware.md)
@@ -136,7 +138,7 @@ what the screen shows).
   top-left · Claude and Copilot tiles side by side under the clock · env column on
   the right (TEMP, HUMIDITY, AIR/IAQ).
 - AI tiles: icon + big %. The tile **border is the progress bar** (clockwise from top-left).
-  Claude: border + big % = session %, "WK" % + small bar = week %. Copilot: border + big % = month %. A tile appears once its tool was received this boot; afterwards
+  Claude: border + big % = session %, "WK" % + small bar = week %; no running session (`resets_at` null / past) = grey `--`. Copilot: border + big % = month %. A tile appears once its tool was received this boot; afterwards
   stale data (tool missing from the response, `measured_at` > 1 h, or no good GET for 5 min)
   keeps the last values in **grey** instead of hiding the tile. None ever received -> big clock.
 - Missing data shows `--`, never fake zeros.

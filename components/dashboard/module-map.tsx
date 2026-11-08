@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useState } from "react";
-import { useRouter } from "next/navigation";
 import { CheckIcon, MapPinIcon } from "@phosphor-icons/react";
 import { setModuleLocation } from "@/app/(app)/actions";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Map, MapControls, MapMarker, MarkerContent, MarkerLabel, MarkerPopup, MarkerTooltip, useMap } from "@/components/ui/map";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useDashboardPending } from "@/components/dashboard/pending";
 import { cn } from "cn";
 
 export type MapModule = {
@@ -264,7 +264,7 @@ function LocationCard({
 
 /** Every module as a dot at its location, framed by the view. Hovering one shows its values, clicking pins them and puts it in focus. */
 export function ModuleMap({ modules, places, className }: { modules: MapModule[]; places: MapPlace[]; className?: string }) {
-  const router = useRouter();
+  const { navigate } = useDashboardPending();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -369,7 +369,7 @@ export function ModuleMap({ modules, places, className }: { modules: MapModule[]
                   longitude={spot[0]}
                   latitude={spot[1]}
                   draggable={editing}
-                  onClick={() => (editing ? setActiveId(m.id) : router.push(m.href, { scroll: false }))}
+                  onClick={() => (editing ? setActiveId(m.id) : navigate(m.href))}
                   onDragStart={() => setActiveId(m.id)}
                   onDrag={({ lng, lat }) => setMoved((all) => ({ ...all, [m.id]: [lng, lat] }))}
                 >

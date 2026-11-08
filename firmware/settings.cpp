@@ -14,6 +14,7 @@ static void clamp(settings_t &s)
     s.temp_offset = constrain(s.temp_offset, -10.0f, 10.0f);
     s.night_start %= 24 * 60;
     s.night_end %= 24 * 60;
+    if (s.remind_min > REMIND_MAX_MIN) s.remind_min = REMIND_MAX_MIN;
 }
 
 void settings_begin()
@@ -25,6 +26,7 @@ void settings_begin()
     cur.night_off = prefs.getBool("night", false);
     cur.night_start = prefs.getUShort("n_start", 22 * 60);
     cur.night_end = prefs.getUShort("n_end", 7 * 60);
+    cur.remind_min = prefs.getUChar("remind", 5);
     clamp(cur);
 }
 
@@ -40,6 +42,7 @@ void settings_set(const settings_t &s)
     prefs.putBool("night", cur.night_off);
     prefs.putUShort("n_start", cur.night_start);
     prefs.putUShort("n_end", cur.night_end);
+    prefs.putUChar("remind", cur.remind_min);
     rev++;
 }
 
