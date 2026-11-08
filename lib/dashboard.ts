@@ -98,6 +98,16 @@ function buckets(from: number, now: number, bucketMs: number) {
 }
 
 /** Newest non-null value per sensor from a device's recent rows: sensors report null while warming up. */
+function parsePlace(label: string, value: string | undefined) {
+  const [latitude, longitude] = (value ?? "").split(",").map((part) => Number.parseFloat(part));
+  return Number.isFinite(latitude) && Number.isFinite(longitude) ? { label, latitude, longitude } : null;
+}
+
+/** Fixed points for the dashboard map. From env, since the repo is public. */
+export function mapPlaces() {
+  return [parsePlace("Home", process.env.WORKDESK_MAP_HOME), parsePlace("Company", process.env.WORKDESK_MAP_COMPANY)].filter((p) => p !== null);
+}
+
 function latestReading(rows: ReadingRow[]): ModuleLatest | null {
   if (!rows.length) return null;
   const pick = (field: keyof Omit<ReadingRow, "ts">) => rows.find((r) => r[field] !== null)?.[field] ?? null;

@@ -15,7 +15,7 @@ import { ModuleSelect, type ModuleOption } from "@/components/dashboard/module-s
 import { MetricChart, UsageChart, type TimeAxis } from "@/components/dashboard/charts";
 import { TIMEZONE } from "@/lib/api/time";
 import { MODULE_OFFLINE_AFTER_MS } from "@/lib/board";
-import { getDashboardData, parseRange, RANGES, type DashboardData, type ModuleLatest, type ModuleStatus, type RangeKey, type UsageTool } from "@/lib/dashboard";
+import { getDashboardData, mapPlaces, parseRange, RANGES, type DashboardData, type ModuleLatest, type ModuleStatus, type RangeKey, type UsageTool } from "@/lib/dashboard";
 import { dayLabel, fromNow, timeFormat } from "@/lib/format";
 import { cn } from "cn";
 
@@ -76,13 +76,13 @@ async function Dashboard({ searchParams }: Pick<PageProps<"/">, "searchParams">)
         <UsageCard usage={data.usage} axis={axis} now={now} className="lg:col-span-2" />
         <ModuleMap
           className="lg:col-span-3"
+          places={mapPlaces()}
           modules={modules.map((m) => ({
             id: m.id,
             label: labels[m.id],
             online: isOnline(m, now),
-            summary: moduleSummary(m, now),
+            readings: moduleReadings(m, now),
             href: dashboardHref(range, m.id),
-            selected: m.id === selected?.module.id,
             latitude: m.latitude,
             longitude: m.longitude,
           }))}
@@ -115,15 +115,13 @@ function moduleLabels(modules: ModuleStatus[]) {
   return Object.fromEntries(modules.map((m) => [m.id, !m.name ? m.id : shared(m.name) ? `${m.name} · ${m.id}` : m.name]));
 }
 
-/** One line for the map: whatever the module's sensors currently report. */
-function moduleSummary(m: ModuleStatus, now: number) {
-  if (!isOnline(m, now)) return "Offline";
-  const parts = [
-    m.latest?.temp_c != null && `${m.latest.temp_c.toFixed(1)}°C`,
-    m.latest?.hum_pct != null && `${m.latest.hum_pct.toFixed(0)}%`,
-    m.latest?.lux != null && `${m.latest.lux.toFixed(0)} lx`,
-  ].filter(Boolean);
-  return parts.join(" · ") || "No sensors";
+/** Rows for the map card: whatever the module's sensors currently report. */
+function moduleReadings(m: ModuleStatus, now: number) {
+  if (!isOnline(m, now)) return [];
+  return METRICS.flatMap(({ key, title, unit, digits }) => {
+    const value = m.latest?.[key];
+    return value == null ? [] : [{ label: title, value: `${value.toFixed(digits)}${unit}` }];
+  });
 }
 
 function formatDuration(seconds: number) {
