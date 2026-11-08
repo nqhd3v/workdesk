@@ -46,8 +46,9 @@ void ui_setup_mac(const char *mac); // "aa:bb:..." plus " *" when custom
 typedef enum { UI_PAGE_HOME, UI_PAGE_CODE, UI_PAGE_MEETING, UI_PAGE_COUNT } ui_page_t;
 void ui_show_page(ui_page_t page);
 
-// Meeting reminder: title (UTF-8), "14:00-14:30", secs until start as mm:ss; <= 0 = "00:00" + TIME'S UP.
-void ui_set_meeting(const char *title, const char *range, int secs);
+// Meeting reminder: title (UTF-8, 2 lines max), location ("" = hidden), start / end "14:00",
+// secs until start: header "IN 4 MIN" / "IN 40 SEC", <= 0 = "TIME'S UP".
+void ui_set_meeting(const char *title, const char *location, const char *start, const char *end, int secs);
 void ui_set_code(const char *code, int secs_left); // web login code and its countdown
 
 // Connecting screen (boot, while saved networks are tried). Updates the status line when shown.

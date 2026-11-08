@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { devDate, isWorkingTime, runCheck, runningMeetingEnd, type Meeting } from "../src/check";
+import { devDate, isWorkingTime, meetingKey, runCheck, runningMeetingEnd, type Meeting } from "../src/check";
 
 const at = (h: number, m = 0) => h * 3600 + m * 60;
 const meeting = (id: string, start: number, end: number): Meeting => ({ id, title: id, start, end });
@@ -55,6 +55,28 @@ test("syncs a moved meeting with the same id", () => {
   check(at(9));
   calendar[0] = meeting("a", at(14, 30), at(15, 30));
   assert.equal(check(at(9, 30)), "synced");
+});
+
+test("syncs a meeting whose location changed", () => {
+  const calendar = [{ ...meeting("a", at(14), at(15)), location: "Room 1" }];
+  const { check } = setup(calendar);
+  check(at(9));
+  assert.equal(check(at(9, 30)), "unchanged");
+  calendar[0] = { ...calendar[0], location: "Room 2" };
+  assert.equal(check(at(10)), "synced");
+});
+
+test("syncs a renamed meeting", () => {
+  const calendar = [meeting("a", at(14), at(15))];
+  const { check } = setup(calendar);
+  check(at(9));
+  calendar[0] = { ...calendar[0], title: "Planning" };
+  assert.equal(check(at(9, 30)), "synced");
+});
+
+test("meetingKey is id|location|time|title", () => {
+  assert.equal(meetingKey({ id: "x@google.com", title: "Retro", location: "Room 1", start: 100, end: 200 }), "x@google.com|Room 1|100-200|Retro");
+  assert.equal(meetingKey({ id: "y", title: "Standup", start: 100, end: 200 }), "y||100-200|Standup");
 });
 
 test("syncs a cancelled meeting, including the last one of the day", () => {

@@ -6,7 +6,7 @@ const iso = (s: number) => new Date(s * 1000).toISOString();
 
 export const POST = ingestRoute("events", eventsPayload, async (data, key) => {
   const events = data.events
-    .map((e) => ({ id: e.id ?? null, title: e.title, starts_at: iso(e.start), ends_at: iso(e.end) }))
+    .map((e) => ({ id: e.id ?? null, title: e.title, location: e.location ?? null, starts_at: iso(e.start), ends_at: iso(e.end) }))
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 
   const { error } = await supabase.from("event_snapshots").insert({

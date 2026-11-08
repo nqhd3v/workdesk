@@ -13,6 +13,7 @@
 
 struct api_meeting_t {
     char title[96];   // UTF-8
+    char location[64]; // "" = none
     time_t start, end;
 };
 

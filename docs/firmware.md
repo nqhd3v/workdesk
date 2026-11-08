@@ -114,7 +114,7 @@ Missing values show `--`.
 
 ### Meeting reminder
 
-Before a meeting from your calendar starts, the board switches to a reminder with the title, time range and an `mm:ss` countdown. At the start it shows `TIME'S UP` for 1 minute, then goes back home. The reminder lights the screen during night screen-off. Set how early it appears on the web page.
+Before a meeting from your calendar starts, the board switches to a reminder with the meeting name, time range and location (when the calendar event has one). The top right shows how long until it starts, such as `IN 4 MIN` or `IN 40 SEC`. At the start it shows `TIME'S UP` for 1 minute, then goes back home. The reminder lights the screen during night screen-off. Set how early it appears on the web page.
 
 ### Web page
 

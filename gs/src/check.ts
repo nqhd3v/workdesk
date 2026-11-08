@@ -1,6 +1,7 @@
 export type Meeting = {
   id: string;
   title: string;
+  location?: string;
   start: number; // unix seconds
   end: number; // unix seconds
 };
@@ -36,12 +37,17 @@ export function isWorkingTime(isoWeekday: number, hhmm: number): boolean {
 }
 
 /**
- * Identifies the schedule from `now` on. Finished meetings don't count, so one ending is no change.
- * Time + title are included, so moving or renaming a meeting is seen as well as adding or removing one.
+ * One meeting as `id|location|start-end|title`: everything Workdesk shows, so a moved, relocated or
+ * renamed meeting reads as a change, not only an added or removed one.
  */
+export function meetingKey(m: Meeting): string {
+  return [m.id, m.location ?? "", `${m.start}-${m.end}`, m.title].join("|");
+}
+
+/** Identifies the schedule from `now` on. Finished meetings don't count, so one ending is no change. */
 export function fingerprint(meetings: Meeting[], now: number): string {
   const unfinished = meetings.filter((m) => m.end > now).sort((a, b) => a.start - b.start);
-  return JSON.stringify(unfinished.map((m) => [m.id, m.start, m.end, m.title]));
+  return unfinished.map(meetingKey).join("\n");
 }
 
 export function runningMeetingEnd(meetings: Meeting[], now: number): number | null {

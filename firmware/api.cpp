@@ -203,7 +203,7 @@ static void post_queue_run(NetworkClient &client, const String &url)
 
 // ---- GET data ---------------------------------------------------------------
 // GET /api/module/config: { usage_states: [{name, measured_at, session{used_pct, resets_at}, week{...}, month{...}}],
-//                           events: [{id, title, start, end}], firmware: {version}, server_time }
+//                           events: [{id, title, location, start, end}], firmware: {version}, server_time }
 static void parse_usage(JsonObjectConst u, api_usage_t *d)
 {
     d->seen = d->present = true;
@@ -238,6 +238,7 @@ static bool parse(const String &body, api_data_t *d)
         if (!start || !end || end <= now || d->n_meetings == API_MAX_MEET) continue;
         api_meeting_t &x = d->meetings[d->n_meetings++];
         strlcpy(x.title, m["title"] | "(no title)", sizeof x.title);
+        strlcpy(x.location, m["location"] | "", sizeof x.location); // null / missing -> ""
         x.start = start;
         x.end = end;
     }

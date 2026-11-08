@@ -6,7 +6,8 @@ import { supabase } from "@/lib/supabase/admin";
 const unix = (iso: string) => Math.floor(new Date(iso).getTime() / 1000);
 const unixOrNull = (iso: string | null) => (iso === null ? null : unix(iso));
 
-type StoredEvent = { id: string | null; title: string; starts_at: string; ends_at: string };
+// `location` is missing in snapshots stored before it existed.
+type StoredEvent = { id: string | null; title: string; location?: string | null; starts_at: string; ends_at: string };
 
 // What the module renders on screen. Timestamps are Unix seconds, like the ingest APIs.
 export const GET = readRoute("module", { limit: 10, windowS: 60, retryAfterS: 20 }, async () => {
@@ -36,7 +37,7 @@ export const GET = readRoute("module", { limit: 10, windowS: 60, retryAfterS: 20
   const now = Date.now();
   const events = ((snapshot.data?.events ?? []) as StoredEvent[])
     .filter((e) => new Date(e.ends_at).getTime() > now)
-    .map((e) => ({ id: e.id, title: e.title, start: unix(e.starts_at), end: unix(e.ends_at) }));
+    .map((e) => ({ id: e.id, title: e.title, location: e.location ?? null, start: unix(e.starts_at), end: unix(e.ends_at) }));
 
   return {
     usage_states: usageStates

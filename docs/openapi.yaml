@@ -93,7 +93,7 @@ paths:
             example:
               sent_at: 1793260800
               events:
-                - { id: "abc123@google.com", title: Daily Meeting, start: 1793262600, end: 1793263500 }
+                - { id: "abc123@google.com", title: Daily Meeting, location: Meeting Room 1, start: 1793262600, end: 1793263500 }
                 - { title: Retro, start: 1793277600, end: 1793281200 }
       responses:
         "201":
@@ -188,7 +188,7 @@ paths:
                     measured_at: 1793260800
                     month: { used_pct: 74.5, resets_at: 1793491200 }
                 events:
-                  - { id: abc123, title: Standup, start: 1793264400, end: 1793265300 }
+                  - { id: abc123, title: Standup, location: Meeting Room 1, start: 1793264400, end: 1793265300 }
                 firmware: { version: 1.2.3 }
                 server_time: 1793260801
         "401": { $ref: "#/components/responses/Unauthorized" }
@@ -278,6 +278,7 @@ components:
             properties:
               id: { type: string, minLength: 1, maxLength: 256, description: Source event id (optional). }
               title: { type: string, minLength: 1, maxLength: 200 }
+              location: { type: string, minLength: 1, maxLength: 200, description: Room or address (optional). }
               start:
                 type: integer
                 minimum: 1704067200
@@ -355,10 +356,11 @@ components:
           description: Not-yet-ended events from the latest events push, sorted by `start`.
           items:
             type: object
-            required: [id, title, start, end]
+            required: [id, title, location, start, end]
             properties:
               id: { type: [string, "null"], description: "Source id, if the sender gave one." }
               title: { type: string }
+              location: { type: [string, "null"], description: "Room or address, if the sender gave one." }
               start: { type: integer, description: Unix seconds. }
               end: { type: integer, description: Unix seconds. }
         firmware:

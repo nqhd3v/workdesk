@@ -21,7 +21,8 @@ hardware-specific decisions briefly, skip web basics.
 - [x] OTA over HTTP (`POST /update`) verified on hardware; on-screen progress + 5 s reboot warning
 - [ ] OTA via ArduinoOTA/espota — board side works, but macOS blocks python LAN UDP (Local Network privacy)
 - [x] Meeting reminder page (`UI_PAGE_MEETING`): `remind_min` before start (web setting, default 5, 0 = off),
-      mm:ss countdown, TIME'S UP held 60 s, BOOT dismisses — written, not yet verified on hardware
+      name (32 bold, 2 lines) + start-end + location, header "IN 4 MIN" / "IN 40 SEC" / TIME'S UP held 60 s,
+      BOOT dismisses — written, not yet verified on hardware
 - [ ] End-of-work bomb countdown + alerts
 - [ ] Power modes (deep sleep, presence via phone BLE, IMU wake)
 - [ ] VBUS sense mod (see Hardware) to tell USB from battery
@@ -130,7 +131,8 @@ what the screen shows).
 - Screen 536×240 landscape, **true black background**. No grey panel fills
   (AMOLED: lit pixels cost power and burn in). Thin borders only.
 - Font: **JetBrains Mono** only. Sizes on device: 13 (labels), 15 (date, units),
-  18 medium (seconds), 32 bold (values), 60 bold (clock). Nothing smaller than 13 px.
+  18 medium (seconds), 32 bold (values; `jbm_b32t` = full text for meeting titles), 60 bold (clock).
+  Nothing smaller than 13 px.
 - Palette: ink `#F2F2F2`, dim `#8A8A8A`, faint `#3A3A3A`, rule `#262626`,
   amber `#F5A524`, cyan `#4FD1E8`, green `#3DDC84`, Claude `#D97757`, Copilot `#8B7CF6`.
 - Home layout: status bar (sync dot only: grey idle, yellow uploading, green 5 s after an upload,
@@ -143,8 +145,9 @@ what the screen shows).
   keeps the last values in **grey** instead of hiding the tile. None ever received -> big clock.
 - Missing data shows `--`, never fake zeros.
 - Icons are LV_IMG_CF_ALPHA_8BIT, coloured with `img_recolor`.
-- Countdown screen: `00:10 → 00:00` (mm:ss, not hh:mm:ss), then "TIME'S UP" + small
-  text held ~60 s. Meeting screen: title, time range, starts-in countdown; no clickable links.
+- Countdown screen (end of work): `00:10 → 00:00` (mm:ss, not hh:mm:ss), then "TIME'S UP" + small
+  text held ~60 s. Meeting screen: name is the focus, then start time (amber) - end, location;
+  time left only as small header text ("IN 4 MIN"); no clickable links.
 - Burn-in: plan a few-pixel layout shift every few minutes for static elements.
 
 ## Code conventions

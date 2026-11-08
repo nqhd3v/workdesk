@@ -6,7 +6,7 @@ const DEV_MODE = false;
 
 const CACHE_TTL_S = 21_600; // CacheService's maximum, 6 hours. Losing a value only costs one extra check.
 const NO_TITLE = "(No title)";
-const MAX_TITLE = 200; // /api/events limit
+const MAX_TITLE = 200; // /api/events limit, also for location
 
 const secs = (d: GoogleAppsScript.Base.Date) => Math.floor(d.getTime() / 1000);
 
@@ -25,6 +25,7 @@ function loadRemaining(now: Date): Meeting[] {
     .map((e) => ({
       id: e.getId(),
       title: (e.getTitle() || NO_TITLE).slice(0, MAX_TITLE),
+      location: e.getLocation().trim().slice(0, MAX_TITLE) || undefined,
       start: secs(e.getStartTime()),
       end: secs(e.getEndTime()),
     }));

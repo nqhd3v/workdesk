@@ -18,7 +18,7 @@
  *     brightness, NORMAL / SAVE BATTERY, night screen-off (BOOT wakes it 30 s), temp offset,
  *     meeting reminder time.
  *   - Meeting reminder: N min (settings, default 5, 0 = off) before a meeting from the backend's
- *     events, a page with the title, time range and an mm:ss countdown, then TIME'S UP for 60 s.
+ *     events, a page with the title, time range, location and "IN 4 MIN", then TIME'S UP for 60 s.
  *     It lights the screen during night screen-off. BOOT dismisses it.
  *
  * Board settings (Arduino IDE, esp32 core >= 3.3.0):
@@ -55,7 +55,7 @@
 #include "env.h"
 #include "logq.h"
 
-#define FW_VERSION "0.9.7"
+#define FW_VERSION "0.9.8"
 
 // ---- pins (from Waveshare examples) ----------------------------------------
 #define PIN_LCD_CS    6
@@ -553,9 +553,10 @@ void loop() {
       struct tm a, b;
       localtime_r(&m.start, &a);
       localtime_r(&m.end, &b);
-      char range[16];
-      snprintf(range, sizeof range, "%02d:%02d-%02d:%02d", a.tm_hour, a.tm_min, b.tm_hour, b.tm_min);
-      ui_set_meeting(m.title, range, (int)(m.start - t));
+      char from[6], to[6];
+      snprintf(from, sizeof from, "%02d:%02d", a.tm_hour, a.tm_min);
+      snprintf(to, sizeof to, "%02d:%02d", b.tm_hour, b.tm_min);
+      ui_set_meeting(m.title, m.location, from, to, (int)(m.start - t));
     }
     ui_set_update(fwupdate_ready());
     apply_brightness(synced, lt);

@@ -10,6 +10,7 @@ LV_FONT_DECLARE(jbm_r13);
 LV_FONT_DECLARE(jbm_r15);
 LV_FONT_DECLARE(jbm_m18);
 LV_FONT_DECLARE(jbm_b32);
+LV_FONT_DECLARE(jbm_b32t); // full text (Latin + Vietnamese): meeting titles
 LV_FONT_DECLARE(jbm_b60);
 LV_FONT_DECLARE(jbm_b96);
 LV_FONT_DECLARE(jbm_m22);
@@ -59,7 +60,8 @@ static bool clock_big = false;
 // pages
 static lv_obj_t *scr_page[UI_PAGE_COUNT];
 static lv_obj_t *c_code, *c_sub;
-static lv_obj_t *m_title, *m_range, *m_count, *m_hint;
+static lv_obj_t *m_when, *m_title, *m_range, *m_place, *m_hint;
+#define M_TITLE_W (SCR_W - 2 * PAD - 16)
 #if LV_USE_QRCODE
 static lv_obj_t *c_qr;
 #define CODE_X -98 // code and hint centered in the space left of the QR
@@ -294,18 +296,29 @@ static void pages_create(void)
     lv_obj_center(c_qr);
 #endif
 
-    // meeting reminder
+    // meeting reminder: name first, then start time, location; the countdown is the header's "IN 4 MIN"
     page_create(UI_PAGE_MEETING, "MEETING");
     s = scr_page[UI_PAGE_MEETING];
-    m_title = label(s, &jbm_m22, C_INK, "");
-    lv_label_set_long_mode(m_title, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(m_title, SCR_W - 2 * PAD - 8);
+    m_when = label(s, &jbm_r13, C_DIM, "");
+    lv_obj_align(m_when, LV_ALIGN_TOP_RIGHT, -PAD - 4, 10);
+    lv_obj_t *col = lv_obj_create(s); // centered between the header and the hint
+    lv_obj_remove_style_all(col);
+    lv_obj_set_pos(col, 0, BAR_H + 1);
+    lv_obj_set_size(col, SCR_W, SCR_H - BAR_H - 1 - 28);
+    lv_obj_clear_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_row(col, 4, 0);
+    m_title = label(col, &jbm_b32t, C_INK, "");
+    lv_obj_set_width(m_title, M_TITLE_W);
     lv_obj_set_style_text_align(m_title, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_align(m_title, LV_ALIGN_TOP_MID, 0, BAR_H + 12);
-    m_range = label(s, &jbm_r15, C_DIM, "");
-    lv_obj_align(m_range, LV_ALIGN_TOP_MID, 0, BAR_H + 42);
-    m_count = label(s, &jbm_b96, C_AMBER, "--:--");
-    lv_obj_align(m_count, LV_ALIGN_TOP_MID, 0, BAR_H + 80);
+    lv_obj_set_style_pad_bottom(m_title, 8, 0);
+    m_range = label(col, &jbm_m22, C_DIM, "");
+    lv_label_set_recolor(m_range, true); // start time amber, end time dim
+    m_place = label(col, &jbm_r15, C_DIM, "");
+    lv_obj_set_width(m_place, M_TITLE_W);
+    lv_label_set_long_mode(m_place, LV_LABEL_LONG_DOT);
+    lv_obj_set_style_text_align(m_place, LV_TEXT_ALIGN_CENTER, 0);
     m_hint = label(s, &jbm_r13, C_DIM, "BOOT = dismiss");
     lv_obj_align(m_hint, LV_ALIGN_BOTTOM_MID, 0, -8);
 
@@ -352,25 +365,32 @@ void ui_set_code(const char *code, int secs_left)
     lv_obj_align(c_sub, LV_ALIGN_BOTTOM_MID, CODE_X, -20);
 }
 
-void ui_set_meeting(const char *title, const char *range, int secs)
+void ui_set_meeting(const char *title, const char *location, const char *start, const char *end, int secs)
 {
-    if (strcmp(lv_label_get_text(m_title), title)) lv_label_set_text(m_title, title);
-    bool up = secs <= 0;
-    char t[64];
-    if (up) snprintf(t, sizeof t, "TIME'S UP  \xC2\xB7  %s", range);
-    else snprintf(t, sizeof t, "%s", range);
-    if (strcmp(lv_label_get_text(m_range), t)) {
-        lv_label_set_text(m_range, t);
-        lv_obj_set_style_text_color(m_range, up ? C_AMBER : C_DIM, 0);
-        lv_obj_align(m_range, LV_ALIGN_TOP_MID, 0, BAR_H + 42);
+    if (strcmp(lv_label_get_text(m_title), title)) {
+        // up to 2 lines; longer titles end in "..."
+        lv_point_t sz;
+        const lv_font_t *f = &jbm_b32t;
+        lv_txt_get_size(&sz, title, f, 0, 0, M_TITLE_W, LV_TEXT_FLAG_NONE);
+        bool cut = sz.y > 2 * lv_font_get_line_height(f);
+        lv_label_set_long_mode(m_title, cut ? LV_LABEL_LONG_DOT : LV_LABEL_LONG_WRAP);
+        lv_obj_set_height(m_title, cut ? 2 * lv_font_get_line_height(f) + 8 : LV_SIZE_CONTENT); // + pad_bottom
+        lv_label_set_text(m_title, title);
     }
-    if (up) secs = 0;
-    if (secs > 99 * 60 + 59) secs = 99 * 60 + 59;
-    snprintf(t, sizeof t, "%02d:%02d", secs / 60, secs % 60);
-    if (strcmp(lv_label_get_text(m_count), t)) {
-        lv_label_set_text(m_count, t);
-        lv_obj_set_style_text_color(m_count, up ? C_RED : C_AMBER, 0);
-        lv_obj_align(m_count, LV_ALIGN_TOP_MID, 0, BAR_H + 80);
+    char t[48];
+    snprintf(t, sizeof t, "#F5A524 %s#  \xE2\x80\x93  %s", start, end);
+    if (strcmp(lv_label_get_text(m_range), t)) lv_label_set_text(m_range, t);
+    if (strcmp(lv_label_get_text(m_place), location)) lv_label_set_text(m_place, location);
+    if (location[0]) lv_obj_clear_flag(m_place, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_add_flag(m_place, LV_OBJ_FLAG_HIDDEN);
+
+    if (secs <= 0) snprintf(t, sizeof t, "TIME'S UP");
+    else if (secs < 60) snprintf(t, sizeof t, "IN %d SEC", secs);
+    else snprintf(t, sizeof t, "IN %d MIN", secs / 60);
+    if (strcmp(lv_label_get_text(m_when), t)) {
+        lv_label_set_text(m_when, t);
+        lv_obj_set_style_text_color(m_when, secs <= 0 ? C_AMBER : C_DIM, 0);
+        lv_obj_align(m_when, LV_ALIGN_TOP_RIGHT, -PAD - 4, 10);
     }
 }
 

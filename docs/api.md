@@ -152,6 +152,7 @@ Snapshot of upcoming events, e.g. pushed by a Google Apps Script time trigger.
 | `events` | array | yes | 0–100 items. |
 | `events[].id` | string | no | Source event id, 1–256 chars. Recommended. |
 | `events[].title` | string | yes | 1–200 chars. |
+| `events[].location` | string | no | 1–200 chars, e.g. a room. Shown on the module's meeting reminder. |
 | `events[].start` | integer | yes | Unix seconds, up to 366 days ahead. |
 | `events[].end` | integer | yes | Unix seconds, `end >= start`, at most 7 days after `start`. |
 
@@ -164,7 +165,7 @@ curl -X POST "$WORKDESK_URL/api/events" \
   -d '{
     "sent_at": 1793260800,
     "events": [
-      { "id": "abc123@google.com", "title": "Daily Meeting", "start": 1793262600, "end": 1793263500 },
+      { "id": "abc123@google.com", "title": "Daily Meeting", "location": "Meeting Room 1", "start": 1793262600, "end": 1793263500 },
       { "title": "Retro", "start": 1793277600, "end": 1793281200 }
     ]
   }'
@@ -278,6 +279,7 @@ Read-only; nothing is stored.
 | `events[]` | array | From the latest events push, only events that haven't ended yet, sorted by `start`. Can be empty. |
 | `events[].id` | string \| null | Source id, if the sender gave one. |
 | `events[].title` | string | |
+| `events[].location` | string \| null | Room or address, if the sender gave one. |
 | `events[].start` / `events[].end` | integer | Unix seconds. |
 | `firmware.version` | string | Latest firmware release. A hint only: the module verifies the signed release itself before using it. |
 | `server_time` | integer | Server clock, Unix seconds. Use it to set the module clock or compute countdowns. |
@@ -306,7 +308,7 @@ curl "$WORKDESK_URL/api/module/config" -H "x-workdesk-key: $WORKDESK_KEY"
     }
   ],
   "events": [
-    { "id": "abc123", "title": "Standup", "start": 1793264400, "end": 1793265300 }
+    { "id": "abc123", "title": "Standup", "location": "Meeting Room 1", "start": 1793264400, "end": 1793265300 }
   ],
   "firmware": { "version": "1.2.3" },
   "server_time": 1793260801

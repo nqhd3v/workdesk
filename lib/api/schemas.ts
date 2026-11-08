@@ -65,6 +65,8 @@ export const eventsPayload = z.object({
           // Source id (e.g. calendar event id); optional, useful for later diffing.
           id: z.string().min(1).max(256).optional(),
           title: z.string().min(1).max(200),
+          // Where it happens (room, address); optional, shown on the module's meeting reminder.
+          location: z.string().min(1).max(200).optional(),
           start: unixSeconds(366 * DAY_S),
           end: unixSeconds(367 * DAY_S),
         })
