@@ -55,7 +55,7 @@
 #include "env.h"
 #include "logq.h"
 
-#define FW_VERSION "0.9.6"
+#define FW_VERSION "0.9.7"
 
 // ---- pins (from Waveshare examples) ----------------------------------------
 #define PIN_LCD_CS    6

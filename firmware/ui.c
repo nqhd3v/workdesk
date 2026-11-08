@@ -44,6 +44,7 @@ LV_IMG_DECLARE(img_copilot);
 
 // ---- widgets we update -----------------------------------------------------
 static lv_obj_t *lb_sync_dot, *lb_update;
+#define UPDATE_X (PAD + 20) // update notice starts right of the sync dot
 static lv_obj_t *scr_home, *scr_setup, *lb_setup_msg, *lb_setup_mac;
 static lv_obj_t *wifi_icon, *wifi_part[4]; // [0] = dot, [1..3] = arcs, inner to outer
 static lv_obj_t *lb_rssi;
@@ -330,11 +331,8 @@ static void pages_create(void)
 void ui_set_update(const char *version)
 {
     char text[40] = "";
-    if (version[0]) snprintf(text, sizeof text, "UPDATE %s: PRESS BOOT", version);
-    if (strcmp(lv_label_get_text(lb_update), text)) {
-        lv_label_set_text(lb_update, text);
-        lv_obj_align(lb_update, LV_ALIGN_TOP_MID, 0, 6);
-    }
+    if (version[0]) snprintf(text, sizeof text, "UPDATE %s \xC2\xB7 PRESS BOOT", version);
+    if (strcmp(lv_label_get_text(lb_update), text)) lv_label_set_text(lb_update, text);
 }
 
 void ui_set_code(const char *code, int secs_left)
@@ -582,8 +580,10 @@ void ui_init(void)
     // ---- status bar ----
     lb_sync_dot = box(scr, PAD + 1, 8, 10, 10, C_DIM, LV_RADIUS_CIRCLE);
     box(scr, 0, BAR_H, SCR_W, 1, C_LINE, 0);
+    // left of the Wi-Fi icon, after the sync dot; width set by status_reflow(), cut with "..." if short
     lb_update = label(scr, &jbm_r13, C_AMBER, "");
-    lv_obj_align(lb_update, LV_ALIGN_TOP_MID, 0, 6);
+    lv_label_set_long_mode(lb_update, LV_LABEL_LONG_DOT);
+    lv_obj_set_pos(lb_update, UPDATE_X, 6);
 
     // right side, laid out right-to-left
     lb_batt = label(scr, &jbm_r13, C_GREEN, "--%");
@@ -835,6 +835,8 @@ static void status_reflow(void)
         x -= 5;
     }
     lv_obj_set_x(wifi_icon, x - WIFI_W);
+    int room = x - WIFI_W - 12 - UPDATE_X; // never runs into the Wi-Fi icon
+    lv_obj_set_width(lb_update, room > 0 ? room : 0);
 }
 
 void ui_set_sync(ui_sync_t s)
